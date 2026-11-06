@@ -1,9 +1,20 @@
+Back to [Main Project Home](https://github.com/slgrobotics/articubot_one/wiki)
+
+-----------------
+
 # LiDAR dock detector
 
-Standalone, perception-only ROS 2 node for a known three-sided rectangular bay
-(or a V landmark via `target_shape: v`). The ROS package, Python module, node,
-and executable are named `dock_detector`. No motion commands, actions, simulator
-pose queries, or automatic Nav2 reconfiguration.
+Standalone, perception-only ROS 2 node for detecting a relative position a known three-sided rectangular bay
+(or a V landmark via `target_shape: v`) using only LiDAR `scan` topic messages.
+
+Assists Nav2 Docking by publishing a `Dock` message that contains the dock pose.
+
+> In the ROS 2 Nav2 Docking Framework, the dock detector package is responsible for detecting the target charging dock or station
+> (using sensors like LiDAR, cameras, or AR tags) and publishing a `nav2_msgs/msg/Dock` message (or equivalent dock pose topic),
+> which provides the framework with the precise position and orientation of the dock so the robot can perform its final alignment and charging maneuver.
+
+<img alt="LiDAR dock detector - Seggy SIM" src="https://github.com/user-attachments/assets/0738a09a-0b89-4a54-bf5b-31ea4736a8ff" />
+
 
 ## Run
 
@@ -93,3 +104,7 @@ TF startup). Map-frame mean parking pose was approximately
 not global accuracy; map/world alignment is not calibrated. No docking action or
 robot motion was commanded during this check. The detector exits after the test;
 use the launch command above to run it continuously.
+
+--------------
+
+Back to [Main Project Home](https://github.com/slgrobotics/articubot_one/wiki)
