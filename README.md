@@ -37,6 +37,11 @@ measured position to the software that steers the robot. If there are several
 named bays, the detector looks for the one it has been asked to find. The detector
 itself does not drive the robot.
 
+**Related packages and data:**
+- https://github.com/slgrobotics/dock_detector_nav2
+- https://github.com/slgrobotics/dock_detector_interfaces
+- https://github.com/slgrobotics/dock_detector/tree/main/media
+
 ## Technical overview
 
 Standalone, perception-only ROS 2 node for detecting a known trapezoidal bay
@@ -49,8 +54,7 @@ Assists Nav2 Docking by publishing a `geometry_msgs/msg/PoseStamped` parking pos
 > (using sensors like LiDAR, cameras, or AR tags) and publishing a `nav2_msgs/msg/Dock` message (or equivalent dock pose topic),
 > which provides the framework with the precise position and orientation of the dock so the robot can perform its final alignment and charging maneuver.
 
-<img alt="LiDAR dock detector - Seggy SIM" src="https://github.com/user-attachments/assets/0738a09a-0b89-4a54-bf5b-31ea4736a8ff" />
-
+<img alt="LiDAR dock detector - Seggy SIM" src="https://github.com/user-attachments/assets/199da1b8-5b34-4222-9872-153408c10d4f" />
 
 ## Run
 
