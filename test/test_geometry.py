@@ -3,10 +3,10 @@ import numpy as np
 from dock_detector.geometry import detect_v, angle_error
 
 
-def target(apex=(0., 0.), yaw=0., noise=0., gap=0.02):
+def target(apex=(0., 0.), yaw=0., noise=0., gap=0.02, flare=math.radians(55)):
     rng = np.random.default_rng(9)
     points = []
-    for angle in (yaw-math.pi/4, yaw+math.pi/4):
+    for angle in (yaw-flare, yaw+flare):
         d = np.array([math.cos(angle), math.sin(angle)])
         arm = np.asarray(apex)+np.linspace(gap, .45, 40)[:, None]*d
         points.extend(arm+rng.normal(0, noise, arm.shape))
@@ -32,7 +32,7 @@ def test_rear_scan_gap_and_unordered_points():
 
 def test_reject_single_wall_empty_and_invalid():
     for points in (np.empty((0,2)), np.full((20,2), np.nan), target()[:40]):
-        assert detect_v(points, (0.,0.), 0.) is None
+        assert detect_v(points, (0.,0.), 0., expected_angle=math.radians(65)) is None
 
 
 def test_reject_wrong_location_and_facing():
@@ -43,9 +43,23 @@ def test_reject_wrong_location_and_facing():
 def test_reject_wrong_opening_and_too_short():
     r = np.linspace(.02, .4, 40)
     points = np.vstack([np.column_stack([r, r*.2]), np.column_stack([r, -r*.2])])
-    assert detect_v(points, (0.,0.), 0.) is None
+    assert detect_v(points, (0.,0.), 0., expected_angle=math.radians(65)) is None
     assert detect_v(target()*.1, (0.,0.), 0.) is None
 
 
 def test_partial_face_lost():
     assert detect_v(target()[:43], (0.,0.), 0.) is None
+
+
+def test_sixty_five_degree_v_supported_when_configured():
+    result = detect_v(target(flare=math.radians(32.5)), (0., 0.), 0.,
+                      expected_angle=math.radians(65))
+    assert result is not None
+    assert np.linalg.norm(result.apex) < .01
+
+
+def test_v_does_not_accept_displaced_trapezoid_virtual_apex():
+    from dock_detector.refinement import template
+    faces = template(.5, .5*math.cos(math.radians(32.5)), math.radians(32.5))
+    points = np.vstack([a+(b-a)*np.linspace(.02,.98,40)[:,None] for a,b in faces])
+    assert detect_v(points, (0.,0.), 0., expected_angle=math.radians(65)) is None

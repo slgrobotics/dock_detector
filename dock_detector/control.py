@@ -51,3 +51,33 @@ class PoseController:
             if abs(alpha) > .45:
                 linear = 0.
         return linear, max(-c.angular_speed, min(c.angular_speed, angular)), 'drive'
+
+
+class GoalMemory:
+    """Last fully acquired goal; unconfirmed packets cannot extend its lifetime."""
+    def __init__(self):
+        self.clear()
+
+    def clear(self):
+        self.goal = None
+        self.wall = self.stamp_ns = None
+
+    def accept(self, goal, wall, stamp_ns):
+        self.goal, self.wall, self.stamp_ns = tuple(goal), wall, stamp_ns
+
+    def lookup(self, now, ros_ns, timeout, grace):
+        if self.goal is None:
+            return None
+        age = (ros_ns-self.stamp_ns)/1e9
+        if not 0 <= now-self.wall <= timeout+grace or not -.1 <= age <= timeout+grace:
+            self.clear()
+            return None
+        return self.goal
+
+
+def cached_reverse_command(law, robot, goal):
+    """Follow a cached goal only while reversing; no blind final alignment."""
+    v, w, mode = law.command(robot, goal)
+    if mode != 'drive' or v >= 0.:
+        return 0., 0., 'wait_for_detection'
+    return v, w, 'reverse_cached_goal'

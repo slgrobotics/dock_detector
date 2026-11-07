@@ -18,7 +18,7 @@ from action_msgs.msg import GoalStatusArray
 from geometry_msgs.msg import PoseStamped, TwistStamped
 from lifecycle_msgs.srv import GetState
 from tf2_ros import Buffer, TransformListener, TransformException
-from .control import Limits, PoseController, wrap
+from .control import Limits, PoseController, GoalMemory, cached_reverse_command, wrap
 from .node import rotation
 
 
@@ -47,6 +47,8 @@ def parser():
     p.add_argument('--max-distance', type=float, default=1.5, help='Initial goal range AND travel budget (m)')
     p.add_argument('--tf-timeout', type=float, default=.4)
     p.add_argument('--detection-timeout', type=float, default=.5)
+    p.add_argument('--detection-grace', type=float, default=3.,
+                   help='Extra seconds to reverse toward the last fully acquired goal after detection expires; 0 disables')
     p.add_argument('--acquire-timeout', type=float, default=10.)
     p.add_argument('--loss-timeout', type=float, default=3., help='Stopped reacquisition interval before abort')
     p.add_argument('--acquire-samples', type=int, default=5)
@@ -66,6 +68,8 @@ def validate(args):
                  'max_goal_yaw_jump', 'stall_timeout', 'preview_duration'):
         if not math.isfinite(getattr(args, name)) or getattr(args, name) <= 0:
             raise ValueError(f'{name} must be finite and positive')
+    if not math.isfinite(args.detection_grace) or args.detection_grace < 0:
+        raise ValueError('detection_grace must be finite and nonnegative')
     if args.acquire_samples < 1:
         raise ValueError('acquire_samples must be positive')
     if args.goal and not all(math.isfinite(v) for v in args.goal):
@@ -83,6 +87,7 @@ class DockController(Node):
         self.listener = TransformListener(self.buffer, self)
         self.publisher = self.create_publisher(TwistStamped, args.cmd_vel_topic, 10) if args.execute else None
         self.samples = deque(maxlen=args.acquire_samples)
+        self.goal_memory = GoalMemory()
         self.last_pose_stamp = None
         self.last_pose_wall = None
         self.goal = tuple(args.goal) if args.goal else None
@@ -92,6 +97,8 @@ class DockController(Node):
         self.monitor_future = None
         self.next_monitor_check = 0.
         self.active_motion = False
+        self.robot_stamp = None
+        self.robot_stamp_wall = None
         self.logfile = args.log.open('x') if args.log else None
         self.create_subscription(PoseStamped, args.pose_topic, self.on_pose, 10)
         for action in ('navigate_to_pose', 'navigate_through_poses', 'dock_robot',
@@ -134,11 +141,12 @@ class DockController(Node):
         xyz = r @ np.array([p.x, p.y, p.z])+[tf.translation.x, tf.translation.y, tf.translation.z]
         orientation = r @ rotation(q)
         goal = (float(xyz[0]), float(xyz[1]), math.atan2(orientation[1, 0], orientation[0, 0]))
-        if self.samples:
-            old = self.samples[-1]
+        if self.samples or self.goal_memory.goal is not None:
+            old = self.samples[-1] if self.samples else self.goal_memory.goal
             if math.hypot(goal[0]-old[0], goal[1]-old[1]) > self.args.max_goal_jump or abs(wrap(goal[2]-old[2])) > self.args.max_goal_yaw_jump:
                 self.samples.clear()
                 self.goal = None
+                self.goal_memory.clear()
                 self.emit('goal_jump_reacquire')
         if self.last_pose_wall is not None and time.monotonic()-self.last_pose_wall > self.args.detection_timeout:
             self.samples.clear()
@@ -151,6 +159,7 @@ class DockController(Node):
                          float(np.median([v[1] for v in self.samples])),
                          math.atan2(sum(math.sin(v[2]) for v in self.samples),
                                     sum(math.cos(v[2]) for v in self.samples)))
+            self.goal_memory.accept(self.goal, self.last_pose_wall, self.last_pose_stamp)
 
     def detected_goal(self):
         if not self.args.detected_goal:
@@ -168,7 +177,17 @@ class DockController(Node):
         age = (self.get_clock().now()-Time.from_msg(tf.header.stamp)).nanoseconds/1e9
         if not -.1 <= age <= self.args.tf_timeout:
             raise RuntimeError('Robot TF is stale')
+        stamp = Time.from_msg(tf.header.stamp).nanoseconds
+        now = time.monotonic()
+        if stamp != self.robot_stamp:
+            self.robot_stamp, self.robot_stamp_wall = stamp, now
+        if now-self.robot_stamp_wall > self.args.tf_timeout:
+            raise RuntimeError('Robot TF stopped updating')
         t, q = tf.transform.translation, tf.transform.rotation
+        if not all(math.isfinite(v) for v in (t.x, t.y, t.z, q.x, q.y, q.z, q.w)):
+            raise RuntimeError('Robot TF contains nonfinite values')
+        if abs(math.sqrt(q.x*q.x+q.y*q.y+q.z*q.z+q.w*q.w)-1.) > .01:
+            raise RuntimeError('Robot TF quaternion is invalid')
         return (t.x, t.y, math.atan2(2*(q.w*q.z+q.x*q.y), 1-2*(q.y*q.y+q.z*q.z)))
 
     def monitor_active(self):
@@ -206,11 +225,19 @@ class DockController(Node):
         last_progress = started
         settled_since = preview_since = None
         last_report = 0.
+        next_control = started
+        using_cached = False
         self.emit('start', execute=a.execute, fixed_frame=a.fixed_frame,
-                  goal_source='detected' if a.detected_goal else 'fixed', command_topic=a.cmd_vel_topic)
+                  goal_source='detected' if a.detected_goal else 'fixed', command_topic=a.cmd_vel_topic,
+                  detection_grace=a.detection_grace, control_rate_hz=20.)
         while rclpy.ok() and not stopped():
             rclpy.spin_once(self, timeout_sec=.05)
             now = time.monotonic()
+            # Callbacks can arrive much faster than 20 Hz. Bound control and
+            # command publication independently of incoming TF/message traffic.
+            if now < next_control:
+                continue
+            next_control = now+.05
             if now-started > a.timeout:
                 raise RuntimeError('Overall wall-clock timeout')
             if any(self.actions.values()):
@@ -221,7 +248,18 @@ class DockController(Node):
             except (TransformException, RuntimeError):
                 robot = None
             goal = self.detected_goal()
-            if not ready or robot is None or goal is None:
+            cached = False
+            if (goal is None and initialized and a.detected_goal and not a.forward
+                    and a.detection_grace > 0 and ready and robot is not None):
+                goal = self.goal_memory.lookup(now, self.get_clock().now().nanoseconds,
+                                               a.detection_timeout, a.detection_grace)
+                cached = goal is not None
+            if cached != using_cached:
+                self.emit('detection_grace_started' if cached else 'detection_grace_ended',
+                          goal=goal, detection_grace=a.detection_grace)
+                using_cached = cached
+            # Allow action-status discovery before the first possible command.
+            if now-started < 1. or not ready or robot is None or goal is None:
                 if self.active_motion:
                     self.publish()
                 if initialized:
@@ -229,7 +267,8 @@ class DockController(Node):
                     law.reset()
                     if missing_since is None:
                         missing_since = now
-                        self.emit('stopped_waiting_for_fresh_input')
+                        self.emit('stopped_waiting_for_fresh_input', tf_ready=robot is not None,
+                                  monitor_ready=ready, goal_ready=goal is not None)
                     if now-missing_since > a.loss_timeout:
                         raise RuntimeError('Fresh TF/detection or active collision monitor unavailable')
                 elif now-started > a.acquire_timeout:
@@ -255,7 +294,10 @@ class DockController(Node):
             if math.hypot(robot[0]-progress_pose[0], robot[1]-progress_pose[1]) > .01 or abs(wrap(robot[2]-progress_pose[2])) > .05:
                 progress_pose = robot
                 last_progress = now
-            v, w, mode = law.command(robot, goal)
+            if cached:
+                v, w, mode = cached_reverse_command(law, robot, goal)
+            else:
+                v, w, mode = law.command(robot, goal)
             if mode == 'settle':
                 settled_since = settled_since or now
                 if now-settled_since >= a.settle_time:
@@ -267,7 +309,7 @@ class DockController(Node):
             else:
                 settled_since = None
             if a.execute:
-                if now-last_progress > a.stall_timeout and mode != 'settle':
+                if now-last_progress > a.stall_timeout and mode not in ('settle', 'wait_for_detection'):
                     raise RuntimeError('Motion stalled; safety arbitration may be blocking')
                 self.active_motion = True
                 self.publish(v, w)
@@ -306,8 +348,11 @@ def main(args=None):
             # Continue zero commands through downstream smoothing on completion/error.
             if node.active_motion and rclpy.ok():
                 until = time.monotonic()+2.
+                next_zero = 0.
                 while time.monotonic() < until:
-                    node.publish()
+                    if time.monotonic() >= next_zero:
+                        node.publish()
+                        next_zero = time.monotonic()+.05
                     rclpy.spin_once(node, timeout_sec=.05)
             if node.logfile:
                 node.logfile.close()

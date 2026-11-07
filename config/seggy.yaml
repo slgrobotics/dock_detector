@@ -1,12 +1,17 @@
 dock_detector:
   ros__parameters:
     use_sim_time: true
-    target_shape: rectangle
-    # Three visible INNER faces of the rectangular bay.
-    rectangle_width: 1.05
-    rectangle_depth: 0.40
-    dimension_tolerance: 0.10
-    max_corner_gap: 0.18
+    target_shape: trapezoid
+    # RANSAC geometry seed followed by robust fixed-template pose fitting.
+    joint_refinement: true
+    # Three visible INNER faces; side flare is outward from +X.
+    trapezoid_width: 0.50
+    trapezoid_depth: 0.421695722906443
+    trapezoid_flare_angle: 0.5672320068981571
+    # Allow rear-wall segments separated by the LiDAR blind sector.
+    trapezoid_max_line_gap: 0.30
+    dimension_tolerance: 0.05
+    max_corner_gap: 0.10
     scan_topic: scan
     pose_topic: detected_dock_pose
     fixed_frame: odom
@@ -18,14 +23,16 @@ dock_detector:
     # Visible rear face centre is world (-1.425, 3.0); opening points +X.
     # Output is desired base_link parking XY, with +X toward the open side.
     # Apply no second translation in the docking plugin when using this output.
-    target_to_dock_x: 0.425
-    target_to_dock_y: 0.0
-    search_radius: 0.85
+    # Positive scalar: landmark behind final point along staging-to-final direction.
+    v_offset: 0.60
+    trapezoid_offset: 0.425
+    search_radius: 0.95
     distance_threshold: 0.025
     min_points: 5
     min_length: 0.12
     max_length: 1.30
-    expected_angle: 1.5707963267948966
+    # V fixed choice: 55 degrees per arm, 110 degree included opening.
+    expected_angle: 1.9198621771937625
     angle_tolerance: 0.20
     position_tolerance: 0.45
     yaw_tolerance: 0.45
