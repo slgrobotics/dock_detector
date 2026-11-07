@@ -1,6 +1,10 @@
-# Seggy Nav2 docking simulation — 2026-11-07
+# Seggy Nav2 docking simulation
 
-Persistent integration: articubot_one/robots/seggy/config/docking_sim.yaml and docking_nav2.yaml.
+<img alt="Test world with docking bays" src="https://github.com/user-attachments/assets/3eb251d9-1c13-4ba1-9286-fcb1a11073c8" />
+
+Persistent integration: [articubot_one/robots/seggy/config/docking_sim.yaml](https://github.com/slgrobotics/articubot_one/blob/lyrical/robots/seggy/config/docking_sim.yaml)
+and [docking_nav2.yaml](https://github.com/slgrobotics/articubot_one/blob/lyrical/robots/seggy/config/docking_nav2.yaml).
+
 Standard navigation settings are merged at launch; no manually maintained full Nav2 snapshot.
 
 | Run | Action / bay | Result | Retries | Settled position error | Settled heading error |
