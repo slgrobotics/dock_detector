@@ -6,7 +6,7 @@ Back to [Main Project Home](https://github.com/slgrobotics/articubot_one/wiki)
 
 **Contents:**
 
-- [What is this dock_detector package for?](#what-is-this-dock_detector-package-for)
+- [What is this package for?](#what-is-this-package-for)
 - [Technical overview](#technical-overview)
 - [Run](#run)
 - [Human-friendly geometry configuration](#human-friendly-geometry-configuration)
@@ -25,7 +25,7 @@ Back to [Main Project Home](https://github.com/slgrobotics/articubot_one/wiki)
 
 -------------
 
-## What is this dock_detector package for?
+## What is this package for?
 
 A robot needs to know exactly where a docking bay is before it can park there.
 This package helps it find the bay using LiDAR, a sensor that measures distances
