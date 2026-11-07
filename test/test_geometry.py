@@ -63,3 +63,9 @@ def test_v_does_not_accept_displaced_trapezoid_virtual_apex():
     faces = template(.5, .5*math.cos(math.radians(32.5)), math.radians(32.5))
     points = np.vstack([a+(b-a)*np.linspace(.02,.98,40)[:,None] for a,b in faces])
     assert detect_v(points, (0.,0.), 0., expected_angle=math.radians(65)) is None
+
+
+def test_v_panel_width_allows_partial_support_but_rejects_excess_length():
+    points = target()
+    assert detect_v(points, (0., 0.), 0., panel_width=.7) is not None
+    assert detect_v(points, (0., 0.), 0., panel_width=.2) is None

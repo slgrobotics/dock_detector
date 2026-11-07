@@ -1,4 +1,4 @@
-"""Bounded robust SE(2) fitting of three finite bay faces using NumPy only."""
+"""Bounded robust SE(2) fitting of finite dock panels using NumPy only."""
 import math
 import numpy as np
 from .geometry import Detection, angle_error
@@ -32,7 +32,24 @@ def refine_bay(points, seed, *, width, depth, flare, threshold=.025,
     limit clutter influence. No interpolation, history, or synthesized returns.
     Returns (detection or None, diagnostic metrics).
     """
-    local = template(width, depth, flare)
+    return refine_segments(points, seed, template(width, depth, flare),
+                           threshold=threshold, min_points=min_points, min_length=min_length,
+                           max_translation=max_translation, max_yaw=max_yaw,
+                           max_iterations=max_iterations)
+
+
+def v_template(panel_width, flare):
+    return np.array([[[0., 0.], [panel_width*math.cos(flare), sign*panel_width*math.sin(flare)]]
+                     for sign in (-1, 1)])
+
+
+def refine_v(points, seed, *, panel_width, flare, **kwargs):
+    return refine_segments(points, seed, v_template(panel_width, flare), **kwargs)
+
+
+def refine_segments(points, seed, local, *, threshold=.025, min_points=5,
+                    min_length=.12, max_translation=.05, max_yaw=.10, max_iterations=20):
+    panel_count = len(local)
     initial = np.array([*seed.apex, seed.yaw], dtype=float)
     points = np.asarray(points, dtype=float).reshape(-1, 2)
     points = points[np.isfinite(points).all(axis=1)]
@@ -41,7 +58,7 @@ def refine_bay(points, seed, *, width, depth, flare, threshold=.025,
     labels = np.argmin(distances, axis=1)
     keep = distances[np.arange(len(points)), labels] <= 2*threshold
     pts, labels = points[keep], labels[keep]
-    counts = np.bincount(labels, minlength=3)
+    counts = np.bincount(labels, minlength=panel_count)
     metrics = {'refinement': 'rejected', 'selected_points': len(pts)}
     if np.any(counts < min_points):
         return None, {**metrics, 'reason': 'refinement_insufficient_panel_support'}
@@ -99,7 +116,7 @@ def refine_bay(points, seed, *, width, depth, flare, threshold=.025,
     nearest = np.argmin(distance, axis=1)
     inlier = distance[np.arange(len(points)), nearest] <= threshold
     support = []
-    for panel in range(3):
+    for panel in range(panel_count):
         mask = inlier & (nearest == panel)
         n = int(mask.sum())
         length = float(np.linalg.norm(local[panel, 1]-local[panel, 0]))
@@ -107,7 +124,7 @@ def refine_bay(points, seed, *, width, depth, flare, threshold=.025,
         support.append({'points': n, 'span_m': span, 'coverage': span/length})
     rms = float(np.sqrt(np.mean(distance[np.arange(len(points))[inlier], nearest[inlier]]**2))) if inlier.any() else None
     # Metre-equivalent heading column uses characteristic panel length.
-    scaled_jac = jacobian(pose)*np.array([1., 1., 1./max(width, depth)])
+    scaled_jac = jacobian(pose)*np.array([1., 1., 1./max(np.linalg.norm(local[:, 1]-local[:, 0], axis=1))])
     singular = np.linalg.svd(scaled_jac, compute_uv=False)
     condition = float(singular[0]/max(singular[-1], 1e-12))
     metrics.update(initial_rms_m=before, final_rms_m=rms, iterations=iterations,

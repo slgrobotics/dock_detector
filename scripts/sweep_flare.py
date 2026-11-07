@@ -11,7 +11,15 @@ ANGLES=(20,25,30,35,40,45)
 HEADINGS=(-20,-10,0,10,20)
 REPEATS=3
 PACKAGE=Path(__file__).resolve().parents[1]
-CONFIG=yaml.safe_load((PACKAGE/'config/seggy.yaml').read_text())['dock_detector']['ros__parameters']
+from dock_detector.parameters import geometry_parameters
+CONFIG=yaml.safe_load((PACKAGE/'config/seggy_t.yaml').read_text())['dock_detector']['ros__parameters']
+_flat = {}
+for key, value in CONFIG.items():
+    if isinstance(value, dict):
+        _flat.update({key+"."+name: item for name, item in value.items()})
+    else:
+        _flat[key] = value
+CONFIG = geometry_parameters(_flat)
 NAV=PACKAGE.parent/'articubot_one/robots/seggy/config/nav2_params.yaml'
 FOOTPRINT=json.loads(yaml.safe_load(NAV.read_text())['local_costmap']['local_costmap']['ros__parameters']['footprint'])
 KEYS=('distance_threshold','min_points','min_length','max_length','angle_tolerance',
@@ -63,7 +71,7 @@ def run(out,workers,shape,angles=ANGLES,v_length=.5):
     out.mkdir(parents=True,exist_ok=False)
     (out/'sweep_flare.py').write_text(Path(__file__).read_text())
     sources=[PACKAGE/'dock_detector'/name for name in ('geometry.py','refinement.py','simulation.py')]
-    sources+=[PACKAGE/'config/seggy.yaml',NAV,PACKAGE.parent/'articubot_one/description/lidar.xacro',PACKAGE.parent/'articubot_one/robots/seggy/description/robot.urdf.xacro']
+    sources+=[PACKAGE/'config/seggy_t.yaml',NAV,PACKAGE.parent/'articubot_one/description/lidar.xacro',PACKAGE.parent/'articubot_one/robots/seggy/description/robot.urdf.xacro']
     meta={'shape':shape,'comparison_baseline':{'shape':'trapezoid','flare_deg':32.5} if shape=='v' else None,
           'angles_deg':angles,'headings_deg':HEADINGS,'repeats':REPEATS,'grid_step_m':.1,
           'grid_world_x':[-1.4,.4],'grid_world_y':[2.4,3.6],'rear_world':[-1.425,3.],

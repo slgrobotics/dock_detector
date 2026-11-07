@@ -74,11 +74,11 @@ def extract_lines(points, *, distance_threshold=0.025, min_points=5,
     return lines
 
 
-def detect_v(points, expected_apex, expected_yaw, *, distance_threshold=0.025,
+def _detect_v_seed(points, expected_apex, expected_yaw, *, distance_threshold=0.025,
              min_points=5, min_length=0.12, max_length=1.30,
              expected_angle=math.radians(110), angle_tolerance=0.20,
              position_tolerance=0.45, yaw_tolerance=0.45,
-             max_apex_gap=0.25, max_lines=5):
+             max_apex_gap=0.25, max_lines=5, panel_width=None):
     """RANSAC + total least squares; reject unsupported/wrong-facing pairs.
 
     Returned yaw points from the V vertex toward its open side. Input order does
@@ -105,6 +105,10 @@ def detect_v(points, expected_apex, expected_yaw, *, distance_threshold=0.025,
             along = (support-apex) @ direction
             # Both arms must extend outward from a nearby common vertex.
             if along.min() < -distance_threshold*2 or along.min() > max_apex_gap:
+                valid = False
+                break
+            # Partial panels are allowed, but support cannot extend beyond the panel.
+            if panel_width is not None and along.max() > panel_width + distance_threshold*2:
                 valid = False
                 break
             rays.append(direction)
@@ -257,6 +261,38 @@ def detect_trapezoid(points, expected_center, expected_yaw, *, width=0.5,
     stats.update(metrics)
     if result is not None and (
             np.linalg.norm(result.apex-np.asarray(expected_center)) > kwargs.get('position_tolerance', .45)
+            or abs(angle_error(result.yaw, expected_yaw)) > kwargs.get('yaw_tolerance', .45)):
+        stats.update(reason='refined_pose_outside_prior', confidence=0.)
+        return None
+    return result
+
+
+def detect_v(points, expected_apex, expected_yaw, *, joint_refinement=False,
+             diagnostics=None, panel_width=None, **kwargs):
+    """Seed from independent lines; optionally fit both known finite panels jointly."""
+    stats = diagnostics if diagnostics is not None else {}
+    stats.clear()
+    stats['confidence'] = 0.
+    seed = _detect_v_seed(points, expected_apex, expected_yaw,
+                          panel_width=panel_width, **kwargs)
+    if seed is None:
+        stats.update(reason='no_v_candidate', refinement='not_attempted')
+        return None
+    stats.update(seed_xy=seed.apex.tolist(), seed_yaw=seed.yaw, seed_rms_m=seed.rms)
+    if not joint_refinement:
+        stats.update(reason='matched', refinement='disabled', confidence=None)
+        return seed
+    if panel_width is None or not math.isfinite(panel_width) or panel_width <= 0:
+        raise ValueError('V joint refinement requires a finite positive panel_width')
+    from .refinement import refine_v
+    result, metrics = refine_v(points, seed, panel_width=panel_width,
+                              flare=kwargs.get('expected_angle', math.radians(110))/2,
+                              threshold=kwargs.get('distance_threshold', .025),
+                              min_points=kwargs.get('min_points', 5),
+                              min_length=kwargs.get('min_length', .12))
+    stats.update(metrics)
+    if result is not None and (
+            np.linalg.norm(result.apex-np.asarray(expected_apex)) > kwargs.get('position_tolerance', .45)
             or abs(angle_error(result.yaw, expected_yaw)) > kwargs.get('yaw_tolerance', .45)):
         stats.update(reason='refined_pose_outside_prior', confidence=0.)
         return None

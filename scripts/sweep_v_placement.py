@@ -6,7 +6,15 @@ import argparse,numpy as np,yaml
 from dock_detector.geometry import detect_v,angle_error
 from dock_detector.simulation import simulate_scan,footprint_free,footprint_clearance
 PACKAGE=Path(__file__).resolve().parents[1]
-CFG=yaml.safe_load((PACKAGE/'config/seggy.yaml').read_text())['dock_detector']['ros__parameters']
+from dock_detector.parameters import geometry_parameters
+CFG=yaml.safe_load((PACKAGE/'config/seggy_t.yaml').read_text())['dock_detector']['ros__parameters']
+_flat = {}
+for key, value in CFG.items():
+    if isinstance(value, dict):
+        _flat.update({key+"."+name: item for name, item in value.items()})
+    else:
+        _flat[key] = value
+CFG = geometry_parameters(_flat)
 NAV=PACKAGE.parent/'articubot_one/robots/seggy/config/nav2_params.yaml'
 BODY=json.loads(yaml.safe_load(NAV.read_text())['local_costmap']['local_costmap']['ros__parameters']['footprint'])
 DISTANCES=tuple(np.round(np.arange(.425,.826,.025),3))
@@ -41,7 +49,7 @@ def run(out,workers):
           'headings_deg':[-20,-10,0,10,20],'noise_repeats':3,'lidar':{'samples':360,'view_deg':355,'min_range_m':.3,'max_range_m':24,'noise_sigma_m':.01,'laser_forward_offset_m':.05},
           'final_pose_tolerance_window':{'x_m':[-.05,0,.05],'y_m':[-.1,-.05,0,.05,.1],'yaw_deg':[-10,0,10]},
           'required_worst_clearance_m':.05,'final_world':[-1,3,0],'footprint':BODY,'detector_config':CFG}
-    sources=[PACKAGE/'dock_detector'/n for n in ('simulation.py','geometry.py')]+[PACKAGE/'config/seggy.yaml',NAV]
+    sources=[PACKAGE/'dock_detector'/n for n in ('simulation.py','geometry.py')]+[PACKAGE/'config/seggy_t.yaml',NAV]
     meta['source_sha256']={str(p):hashlib.sha256(p.read_bytes()).hexdigest() for p in sources}
     (out/'metadata.json').write_text(json.dumps(meta,indent=2));(out/'sweep_v_placement.py').write_text(Path(__file__).read_text())
     for n in ('simulation.py','geometry.py'):(out/n).write_text((PACKAGE/'dock_detector'/n).read_text())

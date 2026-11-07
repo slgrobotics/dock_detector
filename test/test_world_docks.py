@@ -1,3 +1,4 @@
+from dock_detector.parameters import geometry_parameters
 """World panels, detector profiles, markings and parking clearances agree."""
 import math
 from pathlib import Path
@@ -23,7 +24,7 @@ def model_polygon(name):
 
 
 def test_perpendicular_v_world_matches_70cm_55degree_template_and_offset():
-    cfg=yaml.safe_load((PACKAGE/'config/seggy_v.yaml').read_text())['dock_detector']['ros__parameters']
+    cfg=load_parameters((PACKAGE/'config/seggy_v.yaml').read_text())
     assert cfg['target_shape']=='v'
     assert cfg['expected_angle']==math.radians(110)
     final=np.array([cfg['expected_dock_x'],cfg['expected_dock_y']])
@@ -48,8 +49,8 @@ def test_two_docks_are_separate_and_both_centerline_approaches_clear():
     assert not any(polygons_intersect(a,b) for a in trap for b in v)
     nav=yaml.safe_load((PACKAGE.parent/'articubot_one/robots/seggy/config/nav2_params.yaml').read_text())
     body=np.array(__import__('json').loads(nav['local_costmap']['local_costmap']['ros__parameters']['footprint']))
-    for profile,marking in [('seggy.yaml','seggy_docking_area'),('seggy_v.yaml','seggy_v_docking_area')]:
-        cfg=yaml.safe_load((PACKAGE/'config'/profile).read_text())['dock_detector']['ros__parameters']
+    for profile,marking in [('seggy_t.yaml','seggy_docking_area'),('seggy_v.yaml','seggy_v_docking_area')]:
+        cfg=load_parameters((PACKAGE/'config'/profile).read_text())
         final=np.array([cfg['expected_dock_x'],cfg['expected_dock_y']]);yaw=cfg['expected_dock_yaw']-math.pi
         mark_pose=list(map(float,WORLD.find(f".//model[@name='{marking}']/pose").text.split()))
         assert np.allclose(mark_pose[:2],final) and abs(mark_pose[5]-yaw)<1e-10
@@ -59,3 +60,12 @@ def test_two_docks_are_separate_and_both_centerline_approaches_clear():
         if cfg['target_shape']=='v':
             footprint=body@rotation(yaw).T+final
             assert min(polygon_clearance(footprint,p) for p in v)>.16
+
+def load_parameters(text):
+    raw=yaml.safe_load(text)['dock_detector']['ros__parameters']
+    flat={}
+    for key,value in raw.items():
+        if isinstance(value,dict):
+            flat.update({key+'.'+k:v for k,v in value.items()})
+        else: flat[key]=value
+    return geometry_parameters(flat)

@@ -7,7 +7,7 @@ import os
 
 
 def generate_launch_description():
-    default = os.path.join(get_package_share_directory('dock_detector'), 'config', 'seggy.yaml')
+    default = os.path.join(get_package_share_directory('dock_detector'), 'config', 'seggy_t.yaml')
     return LaunchDescription([
         DeclareLaunchArgument('params_file', default_value=default),
         DeclareLaunchArgument('use_sim_time', default_value='true'),

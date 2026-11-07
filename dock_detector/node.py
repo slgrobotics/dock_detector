@@ -15,6 +15,7 @@ from diagnostic_msgs.msg import DiagnosticArray, DiagnosticStatus, KeyValue
 from visualization_msgs.msg import Marker, MarkerArray
 from tf2_ros import Buffer, TransformListener, TransformException
 from .geometry import detect_v, detect_trapezoid
+from .parameters import SHAPE_DEFAULTS, geometry_parameters
 
 
 def rotation(q):
@@ -33,21 +34,14 @@ def transform_points(xy, tf):
 class DockDetector(Node):
     def __init__(self):
         super().__init__('dock_detector')
-        defaults = dict(target_shape='trapezoid', trapezoid_width=0.5,
-                        trapezoid_depth=0.5*math.cos(math.radians(32.5)),
-                        trapezoid_flare_angle=math.radians(32.5), trapezoid_max_line_gap=0.30,
-                        joint_refinement=True,
-                        dimension_tolerance=0.10,
-                        max_corner_gap=0.18, scan_topic='scan', pose_topic='detected_dock_pose',
-                        fixed_frame='odom', expected_frame='map',
-                        expected_dock_x=-1.0, expected_dock_y=3.0, expected_dock_yaw=math.pi,
-                        v_offset=0.6, trapezoid_offset=0.425,
-                        search_radius=0.85, max_scan_age=0.5, detection_timeout=0.6,
-                        distance_threshold=0.025, min_points=5, min_length=0.12,
-                        max_length=1.30, expected_angle=math.radians(110),
-                        angle_tolerance=0.20, position_tolerance=0.45,
-                        yaw_tolerance=0.45, max_apex_gap=0.25)
-        self.cfg = {k: self.declare_parameter(k, v).value for k, v in defaults.items()}
+        defaults = dict(target_shape='trapezoid', scan_topic='scan',
+                        pose_topic='detected_dock_pose', fixed_frame='odom', expected_frame='map',
+                        expected_dock_x=-1.0, expected_dock_y=3.0, expected_dock_yaw_deg=180.,
+                        search_radius=.85, max_scan_age=.5, detection_timeout=.6,
+                        distance_threshold=.025, min_points=5, min_length=.12, max_length=1.30,
+                        angle_tolerance_deg=math.degrees(.20), position_tolerance=.45,
+                        yaw_tolerance_deg=math.degrees(.45), **SHAPE_DEFAULTS)
+        self.cfg = geometry_parameters({k: self.declare_parameter(k, v).value for k, v in defaults.items()})
         for k in ('search_radius', 'max_scan_age', 'detection_timeout', 'distance_threshold',
                   'min_length', 'max_length', 'position_tolerance', 'yaw_tolerance',
                   'angle_tolerance', 'max_apex_gap',
@@ -184,9 +178,9 @@ class DockDetector(Node):
                 dimension_tolerance=c['dimension_tolerance'], max_corner_gap=c['max_corner_gap'])
         else:
             detection = detect_v(points, expected_apex, expected_yaw, **kwargs,
-                                 expected_angle=c['expected_angle'], max_apex_gap=c['max_apex_gap'])
-            metrics.update(reason='matched' if detection is not None else 'no_v_candidate',
-                           refinement='not_applicable', confidence=None)
+                                 expected_angle=c['expected_angle'], max_apex_gap=c['max_apex_gap'],
+                                 panel_width=c['v.panel_width'], joint_refinement=c['v.joint_refinement'],
+                                 diagnostics=metrics)
             if detection is not None:
                 metrics['fit_rms_m'] = detection.rms
         self.processed_count += 1

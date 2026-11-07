@@ -60,3 +60,37 @@ def test_match_diagnostics_and_baseline_switch():
     assert stats['reason'] == 'insufficient_lines'
     assert stats['confidence'] == 0.
     assert stats['line_count'] < 3
+
+
+def test_v_joint_fit_corrects_pose_and_keeps_equal_panels():
+    from dock_detector.refinement import v_template, refine_v
+    truth=np.array([1., -2., .7])
+    local=v_template(.7,math.radians(55))
+    panels=transform(local,truth)
+    rng=np.random.default_rng(4)
+    points=np.vstack([a+(b-a)*np.linspace(.08,.9,n)[:,None] for (a,b),n in zip(panels,(35,18))])
+    points+=rng.normal(0,.004,points.shape)
+    seed=Detection(truth[:2]+[.01,-.012],truth[2]+.025,(),.02)
+    result,stats=refine_v(points,seed,panel_width=.7,flare=math.radians(55))
+    assert result is not None,stats
+    assert np.linalg.norm(result.apex-truth[:2])<.007
+    assert abs(angle_error(result.yaw,truth[2]))<.01
+    assert len(stats['panels'])==2 and 0<stats['confidence']<=1
+    assert stats['correction_m']<=.05 and abs(stats['correction_yaw_rad'])<=.10
+    for a,b in result.arms:assert np.linalg.norm(b-a)==pytest.approx(.7)
+    assert refine_v(points[:35],seed,panel_width=.7,flare=math.radians(55))[0] is None
+
+
+def test_v_detector_refinement_switch_and_prior_guard():
+    from dock_detector.geometry import detect_v
+    from dock_detector.refinement import v_template
+    rng=np.random.default_rng(8)
+    points=np.vstack([a+(b-a)*np.linspace(.04,.95,40)[:,None] for a,b in v_template(.7,math.radians(55))])
+    points+=rng.normal(0,.003,points.shape)
+    stats={}
+    assert detect_v(points,(0,0),0,panel_width=.7,joint_refinement=True,diagnostics=stats) is not None
+    assert stats['refinement']=='accepted' and len(stats['panels'])==2
+    assert detect_v(points,(0,0),0,panel_width=.7,joint_refinement=False,diagnostics=stats) is not None
+    assert stats['refinement']=='disabled'
+    assert detect_v(points[:40],(0,0),0,panel_width=.7,joint_refinement=True) is None
+    assert detect_v(points,(0,0),math.pi,panel_width=.7,joint_refinement=True) is None

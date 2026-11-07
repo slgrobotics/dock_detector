@@ -1,3 +1,4 @@
+from dock_detector.parameters import geometry_parameters
 """Check shape-specific scalar offsets in both prior inversion and output pose."""
 import math,time
 from pathlib import Path
@@ -16,7 +17,7 @@ from dock_detector.node import DockDetector
 
 @pytest.mark.parametrize('shape,distance', [('v',.6),('trapezoid',.425)])
 def test_scalar_offset_applies_in_landmark_direction_for_both_shapes(shape,distance):
-    cfg=yaml.safe_load((Path(__file__).resolve().parents[1]/'config/seggy.yaml').read_text())['dock_detector']['ros__parameters']
+    cfg=load_parameters((Path(__file__).resolve().parents[1]/'config/seggy_t.yaml').read_text())
     cfg.update(target_shape=shape,expected_dock_x=1.,expected_dock_y=2.,expected_dock_yaw=math.pi)
     prior_tf=TransformStamped()
     prior_tf.transform.translation.x=10.;prior_tf.transform.translation.y=20.
@@ -53,7 +54,7 @@ def test_scalar_offset_applies_in_landmark_direction_for_both_shapes(shape,dista
     assert pose.header.stamp.sec==10 and pose.header.frame_id==cfg['fixed_frame']
 
 
-@pytest.mark.parametrize('name', ['v_offset','trapezoid_offset'])
+@pytest.mark.parametrize('name', ['v.parking_offset','trapezoid.parking_offset'])
 @pytest.mark.parametrize('value', [-.1,float('nan'),float('inf')])
 def test_invalid_scalar_offsets_fail_before_ros_graph_creation(name,value):
     def parameter(key,default):return SimpleNamespace(value=value if key==name else default)
@@ -61,3 +62,12 @@ def test_invalid_scalar_offsets_fail_before_ros_graph_creation(name,value):
          patch.object(DockDetector,'declare_parameter',side_effect=parameter):
         with pytest.raises(ValueError,match=f'{name} must be finite and nonnegative'):
             DockDetector()
+
+def load_parameters(text):
+    raw=yaml.safe_load(text)['dock_detector']['ros__parameters']
+    flat={}
+    for key,value in raw.items():
+        if isinstance(value,dict):
+            flat.update({key+'.'+k:v for k,v in value.items()})
+        else: flat[key]=value
+    return geometry_parameters(flat)

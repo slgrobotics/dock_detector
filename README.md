@@ -32,6 +32,97 @@ are read at startup; restart after editing them. Defaults target Seggy's current
 simulation and must be calibrated for other worlds/hardware. Do not run two
 publishers on the docking pose topic.
 
+## Human-friendly geometry configuration
+
+Lengths are metres and all public angles are degrees. ROS 2 flattens nested YAML
+keys into dotted parameter names, for example `trapezoid.panel_width`.
+All panels within a shape have equal width (measured along the panel).
+
+```yaml
+trapezoid:
+  panel_width: 0.50
+  flare_angle_deg: 32.5
+  parking_offset: 0.425
+  max_line_gap: 0.30
+  dimension_tolerance: 0.05
+  max_corner_gap: 0.10
+  joint_refinement: true
+v:
+  joint_refinement: true
+  panel_width: 0.70
+  flare_angle_deg: 55.0
+  parking_offset: 0.60
+  max_apex_gap: 0.25
+```
+
+Flare is each side panel's angle from the outward opening centreline. V included
+opening is twice the flare. Trapezoid rear width equals panel width; its depth is
+computed as `panel_width * cos(flare_angle_deg)` (converting degrees internally).
+V detection permits partial panel observations, but rejects observed support
+extending beyond the configured panel width plus two line-distance tolerances.
+It does not require both outer endpoints to be visible.
+
+Common settings remain outside the shape subtrees. Use `expected_dock_yaw_deg`
+(inward Nav2 heading), `angle_tolerance_deg`, and `yaw_tolerance_deg`.
+The supplied profiles retain their measured geometry and tolerances.
+
+This schema replaces the old flat geometry keys: `trapezoid_width`,
+`trapezoid_depth`, `trapezoid_flare_angle`, `expected_angle`, `v_offset`,
+`trapezoid_offset`, and shape-specific fit controls. Flat radian yaw/tolerance
+parameters are also replaced by their `_deg` counterparts. Migrate external
+parameter files before restarting; old overrides are not compatibility aliases.
+Historical result snapshots and examples below retain their original schema;
+use the current files in `config/` for runnable parameters.
+
+## V joint refinement
+
+`v.joint_refinement: true` enables bounded joint fitting after the existing V
+line-pair seed. Both finite, equal-width panels are fit simultaneously with their
+configured opening angle fixed; only landmark X/Y/yaw change. The shared robust
+solver uses fixed point assignments, equal panel weighting and Huber residuals.
+Corrections are bounded to 5 cm / 0.10 rad from the seed. Fits must converge,
+remain within the association prior, be well conditioned, and retain adequate
+support on both panels. Rejected refinement produces no pose, rather than silently
+falling back to the seed. It cannot recover a V with only one supported panel.
+
+Diagnostics include refinement state, per-panel support, residual, correction,
+conditioning and confidence, using the same schema as trapezoid fitting.
+`v.joint_refinement: false` retains the independent-line baseline. This switch is
+separate from `trapezoid.joint_refinement`. Geometric Python API callers must pass
+`joint_refinement=True` and `panel_width` explicitly to opt in; node defaults enable it.
+
+A paired 135-scan offline simulation comparison at 55 degrees per arm and 0.70 m
+panel width found identical coverage (132/135) and improved p95 errors:
+position 11.1 -> 6.5 mm; heading 1.08 -> 0.49 degrees. P95 total detection runtime
+was approximately 30 -> 36 ms on this machine. These synthetic results do not
+establish hardware accuracy or closed-loop docking performance. See
+[comparison and reproduction script](results/2026-11-07-v-refinement/README.md).
+
+## Multiple docks and robots
+
+Nav2 supports multiple named database docks selected through DockRobot's dock_id.
+The current detector instance supports ONE startup-configured dock prior and shape;
+it does not consume dock_id, switch priors at runtime, or distinguish identical
+nearby bays reliably. A common map may contain many bays without changing the
+fitting algorithm, but target selection must constrain the correct prior.
+
+For multiple robots, run a detector and docking server per robot namespace with
+isolated scan, detected pose, command and TF topic trees. Configure frame IDs to
+match each robot's actual TF arrangement: ROS namespaces do not automatically
+prefix frame strings. The detector launch accepts namespace and remaps /tf and
+/tf_static to relative names. This capability has not been validated in a fleet trial.
+
+For multiple selectable bays per robot, add a selected-dock interface that sets
+shape/template/prior and clears old acquisition state, or separate detector
+instances with a selector forwarding ONLY the active bay. Stock Nav2 plugins
+subscribe to a shared relative detected_dock_pose topic; multiple plugins alone
+do not select separate pose streams. Preserve timestamps and stop forwarding when
+unselected/stale. Neither detector nor Nav2 dock database implements fleet bay
+reservation, occupancy or assignment; that requires mission/fleet coordination.
+
+The trapezoid profile is now `config/seggy_t.yaml`; `config/seggy_v.yaml` remains
+the V profile. Historical result snapshots retain their original filenames.
+
 ## Interface
 
 - Input: `scan` (`sensor_msgs/msg/LaserScan`, sensor-data QoS) and timestamped TF.
@@ -167,7 +258,7 @@ Historical offline sweeps retain their original offsets for comparison.
 
 | Dock | Panels / flare | Final world pose (X,Y,yaw) | Staging world XY | Landmark world XY | Profile |
 |---|---|---|---|---|---|
-| Trapezoid | 3 × 0.50 m; 32.5° sides | (-1, 3, 0°) | (-0.2, 3) | Rear midpoint (-1.425, 3) | `config/seggy.yaml` |
+| Trapezoid | 3 × 0.50 m; 32.5° sides | (-1, 3, 0°) | (-0.2, 3) | Rear midpoint (-1.425, 3) | `config/seggy_t.yaml` |
 | V | 2 × 0.70 m; 55° per arm | (0, 6, 270°) | (0, 5.2) | Apex (0, 6.6) | `config/seggy_v.yaml` |
 
 The V is rotated 90° relative to the trapezoid. Its robot faces world -Y and
@@ -338,7 +429,7 @@ along its whole length. To compare the previous line-only result at the same pos
 ```bash
 # Stop the other detector first. This runs the baseline with the same config.
 ros2 run dock_detector dock_detector --ros-args \
-  --params-file ~/robot_ws/src/dock_detector/config/seggy.yaml \
+  --params-file ~/robot_ws/src/dock_detector/config/seggy_t.yaml \
   -p joint_refinement:=false
 ```
 
