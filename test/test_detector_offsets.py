@@ -17,7 +17,7 @@ from dock_detector.node import DockDetector
 @pytest.mark.parametrize('shape,distance', [('v',.6),('trapezoid',.425)])
 def test_scalar_offset_applies_in_landmark_direction_for_both_shapes(shape,distance):
     cfg=yaml.safe_load((Path(__file__).resolve().parents[1]/'config/seggy.yaml').read_text())['dock_detector']['ros__parameters']
-    cfg.update(target_shape=shape,expected_dock_x=1.,expected_dock_y=2.,expected_dock_yaw=0.)
+    cfg.update(target_shape=shape,expected_dock_x=1.,expected_dock_y=2.,expected_dock_yaw=math.pi)
     prior_tf=TransformStamped()
     prior_tf.transform.translation.x=10.;prior_tf.transform.translation.y=20.
     prior_tf.transform.rotation.z=math.sin(math.pi/4)
@@ -47,7 +47,9 @@ def test_scalar_offset_applies_in_landmark_direction_for_both_shapes(shape,dista
     pose=poses[0]
     assert pose.pose.position.x == pytest.approx(4.+distance*math.cos(.7))
     assert pose.pose.position.y == pytest.approx(5.+distance*math.sin(.7))
-    assert 2*math.atan2(pose.pose.orientation.z,pose.pose.orientation.w)==pytest.approx(.7)
+    yaw=2*math.atan2(pose.pose.orientation.z,pose.pose.orientation.w)
+    assert math.atan2(math.sin(yaw-.7),math.cos(yaw-.7))==pytest.approx(-math.pi)
+    assert markers[-1].markers[-1].pose.orientation == pose.pose.orientation
     assert pose.header.stamp.sec==10 and pose.header.frame_id==cfg['fixed_frame']
 
 

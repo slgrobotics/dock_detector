@@ -19,9 +19,10 @@ dock_detector:
     # Coarse prior only; account for the active map/world alignment.
     expected_dock_x: -1.0
     expected_dock_y: 3.0
-    expected_dock_yaw: 0.0
+    expected_dock_yaw: 3.141592653589793
     # Visible rear face centre is world (-1.425, 3.0); opening points +X.
-    # Output is desired base_link parking XY, with +X toward the open side.
+    # Prior and output yaw follow Nav2: +X points INTO the bay.
+    # Output XY is the desired base_link parking point.
     # Apply no second translation in the docking plugin when using this output.
     # Positive scalar: landmark behind final point along staging-to-final direction.
     v_offset: 0.60

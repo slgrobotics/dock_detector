@@ -140,7 +140,7 @@ class DockController(Node):
         r = rotation(tf.rotation)
         xyz = r @ np.array([p.x, p.y, p.z])+[tf.translation.x, tf.translation.y, tf.translation.z]
         orientation = r @ rotation(q)
-        goal = (float(xyz[0]), float(xyz[1]), math.atan2(orientation[1, 0], orientation[0, 0]))
+        goal = (float(xyz[0]), float(xyz[1]), wrap(math.atan2(orientation[1, 0], orientation[0, 0]) + (0. if self.args.forward else math.pi)))
         if self.samples or self.goal_memory.goal is not None:
             old = self.samples[-1] if self.samples else self.goal_memory.goal
             if math.hypot(goal[0]-old[0], goal[1]-old[1]) > self.args.max_goal_jump or abs(wrap(goal[2]-old[2])) > self.args.max_goal_yaw_jump:

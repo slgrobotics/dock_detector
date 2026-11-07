@@ -67,12 +67,14 @@ def test_detection_acquisition_duplicate_loss_and_jump():
                            emit=lambda *a, **k: None)
     msg = PoseStamped()
     msg.header.frame_id = 'odom'
-    msg.pose.orientation.w = 1.
+    # Inward Nav2 dock yaw pi corresponds to reverse parked robot yaw zero.
+    msg.pose.orientation.z = 1.
+    msg.pose.orientation.w = 0.
     with patch('dock_detector.controller.time.monotonic', return_value=100.):
         for i in range(5):
             msg.header.stamp = Time(seconds=9.8+i*.01).to_msg()
             DockController.on_pose(node, msg)
-        assert node.goal == (0., 0., 0.)
+        assert node.goal == pytest.approx((0., 0., 0.))
         DockController.on_pose(node, msg)
         assert node.last_pose_stamp == Time.from_msg(msg.header.stamp).nanoseconds
         msg.header.stamp = Time(seconds=9.9).to_msg()
@@ -167,7 +169,9 @@ def test_isolated_pose_after_gap_does_not_refresh_memory():
                            emit=lambda *a, **k: None)
     msg = PoseStamped()
     msg.header.frame_id = 'odom'
-    msg.pose.orientation.w = 1.
+    # Inward Nav2 dock yaw pi corresponds to reverse parked robot yaw zero.
+    msg.pose.orientation.z = 1.
+    msg.pose.orientation.w = 0.
     with patch('dock_detector.controller.time.monotonic', return_value=100.):
         for i in range(5):
             msg.header.stamp = Time(seconds=9.8+i*.01).to_msg()
@@ -179,5 +183,5 @@ def test_isolated_pose_after_gap_does_not_refresh_memory():
         DockController.on_pose(node, msg)
     assert node.goal is None and len(node.samples) == 1
     assert node.goal_memory.wall == 100.
-    assert node.goal_memory.lookup(102., 12_000_000_000, .5, 3.) == (0., 0., 0.)
+    assert node.goal_memory.lookup(102., 12_000_000_000, .5, 3.) == pytest.approx((0., 0., 0.))
     assert node.goal_memory.lookup(103.6, 13_600_000_000, .5, 3.) is None

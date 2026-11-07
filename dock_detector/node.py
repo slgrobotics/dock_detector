@@ -40,7 +40,7 @@ class DockDetector(Node):
                         dimension_tolerance=0.10,
                         max_corner_gap=0.18, scan_topic='scan', pose_topic='detected_dock_pose',
                         fixed_frame='odom', expected_frame='map',
-                        expected_dock_x=-1.0, expected_dock_y=3.0, expected_dock_yaw=0.0,
+                        expected_dock_x=-1.0, expected_dock_y=3.0, expected_dock_yaw=math.pi,
                         v_offset=0.6, trapezoid_offset=0.425,
                         search_radius=0.85, max_scan_age=0.5, detection_timeout=0.6,
                         distance_threshold=0.025, min_points=5, min_length=0.12,
@@ -165,7 +165,8 @@ class DockDetector(Node):
         points = transform_points(xy, laser_tf)
         prior = transform_points(np.array([[c['expected_dock_x'], c['expected_dock_y']]]), prior_tf)[0]
         rot = rotation(prior_tf.transform.rotation)
-        expected_yaw = c['expected_dock_yaw']+math.atan2(rot[1, 0], rot[0, 0])
+        # Public priors use Nav2 inward heading; fitting uses the opening axis.
+        expected_yaw = c['expected_dock_yaw']+math.atan2(rot[1, 0], rot[0, 0])-math.pi
         offset = c['v_offset'] if c['target_shape'] == 'v' else c['trapezoid_offset']
         expected_apex = prior-offset*np.array([math.cos(expected_yaw), math.sin(expected_yaw)])
         points = points[np.linalg.norm(points-expected_apex, axis=1) <= c['search_radius']]
@@ -201,8 +202,10 @@ class DockDetector(Node):
         pose.header.stamp = scan.header.stamp  # Never replace measurement time with now.
         dock = detection.apex+offset*np.array([math.cos(detection.yaw), math.sin(detection.yaw)])
         pose.pose.position.x, pose.pose.position.y = map(float, dock)
-        pose.pose.orientation.z = math.sin(detection.yaw/2)
-        pose.pose.orientation.w = math.cos(detection.yaw/2)
+        # Nav2 dock heading points into the bay, opposite the fitted opening axis.
+        dock_yaw = math.atan2(math.sin(detection.yaw+math.pi), math.cos(detection.yaw+math.pi))
+        pose.pose.orientation.z = math.sin(dock_yaw/2)
+        pose.pose.orientation.w = math.cos(dock_yaw/2)
         self.pub.publish(pose)
         self.status.publish(Bool(data=True))
         self.last_detection = now

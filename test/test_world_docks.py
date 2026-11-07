@@ -27,7 +27,7 @@ def test_perpendicular_v_world_matches_70cm_55degree_template_and_offset():
     assert cfg['target_shape']=='v'
     assert cfg['expected_angle']==math.radians(110)
     final=np.array([cfg['expected_dock_x'],cfg['expected_dock_y']])
-    yaw=cfg['expected_dock_yaw']
+    yaw=cfg['expected_dock_yaw']-math.pi
     assert yaw==-math.pi/2
     apex=final-cfg['v_offset']*np.array([math.cos(yaw),math.sin(yaw)])
     assert np.allclose(apex,[0.,6.6])
@@ -50,7 +50,7 @@ def test_two_docks_are_separate_and_both_centerline_approaches_clear():
     body=np.array(__import__('json').loads(nav['local_costmap']['local_costmap']['ros__parameters']['footprint']))
     for profile,marking in [('seggy.yaml','seggy_docking_area'),('seggy_v.yaml','seggy_v_docking_area')]:
         cfg=yaml.safe_load((PACKAGE/'config'/profile).read_text())['dock_detector']['ros__parameters']
-        final=np.array([cfg['expected_dock_x'],cfg['expected_dock_y']]);yaw=cfg['expected_dock_yaw']
+        final=np.array([cfg['expected_dock_x'],cfg['expected_dock_y']]);yaw=cfg['expected_dock_yaw']-math.pi
         mark_pose=list(map(float,WORLD.find(f".//model[@name='{marking}']/pose").text.split()))
         assert np.allclose(mark_pose[:2],final) and abs(mark_pose[5]-yaw)<1e-10
         for d in np.linspace(0,.8,17):

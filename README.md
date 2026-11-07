@@ -43,19 +43,30 @@ In RViz add MarkerArray on the debug topic and Pose on the detected pose topic.
 Green segments show fitted wall faces; the blue arrow shows the parking pose.
 
 The output is the desired **base_link parking XY**, projected onto z=0 in
-`fixed_frame` (default `odom`). Its +X axis points toward the bay opening, matching
-Seggy's parked forward heading for reverse docking. It is not the rear-wall centre or
-a camera/tag pose. Configure downstream plugin detection transforms as identity
-if this convention is used; do not apply the parking offset twice. Verify the
-installed backward-docking direction convention before enabling motion.
+`fixed_frame` (default `odom`). Its +X axis points **into the bay**, following
+Nav2's dock convention. For backward docking the parked robot faces the opposite
+direction. Configure Nav2's plugin with `dock_direction: backward`,
+`rotate_to_dock: false`, and identity external detection transforms (zero
+translation and zero roll/pitch/yaw). Remove the deprecated server-level
+`dock_backwards` override. Do not apply the parking offset twice.
+The blue RViz arrow now points into the bay, not along the parked robot heading.
 
-`expected_dock_{x,y,yaw}` in `expected_frame` is a coarse association prior, not a
+**Convention change (2026-11-07):** published yaw and `expected_dock_yaw` are now
+inward. Existing external profiles must add pi to their old outward prior yaw;
+XY and scalar offsets stay unchanged. Seggy's supplied profiles are updated:
+trapezoid dock yaw pi; V dock yaw pi/2. Internal geometric fits still use the
+outward opening axis. Historical results retain their original convention.
+The experimental controller converts detected dock yaw to desired robot yaw
+(adds pi for reverse, unchanged for `--forward`); explicit `--goal` continues to
+mean robot pose. Restart detector and controller together after rebuilding.
+
+`expected_dock_{x,y,yaw}` in `expected_frame` uses inward dock yaw and is a coarse association prior, not a
 substitute detection. `v_offset` and `trapezoid_offset` are separate scalar distances in metres.
 Each places its landmark behind the final point along the staging-to-final
 (reverse-docking) direction. The node selects the parameter for `target_shape`.
 `v_offset` measures final point to V apex; `trapezoid_offset` measures final point
 to inner rear-face midpoint. The output parking point is that distance ahead of
-the landmark along its opening axis. Heading is unchanged; there are no lateral
+the landmark along its opening axis. Published heading is opposite the geometric opening axis; there are no lateral
 or yaw offset parameters. The current inner rear
 face is at world x=-1.425, y=3.0; its opening points +X. An x offset of **0.425 m**
 therefore places the desired robot XY at (-1, 3). `trapezoid_width`,
@@ -127,8 +138,8 @@ within a scan is not compensated; begin stationary, then validate at slow speed.
 
 ## V landmark mode
 
-`target_shape: v` matches two straight arms meeting at an apex. The yaw is their
-outward bisector and `v_offset` sets the distance from apex to the desired
+`target_shape: v` matches two straight arms meeting at an apex. The internal fit yaw is their
+outward bisector; the published dock yaw is opposite and `v_offset` sets the distance from apex to the desired
 parking point along that bisector. The selected V dock uses two 0.70 m arms. **Per-arm flare** is measured from
 the opening axis, so `expected_angle` is twice the flare: 20–45° flare means a
 40–90° included V opening. The selected V default is **110° included opening (55° per arm)**, with 70 cm
