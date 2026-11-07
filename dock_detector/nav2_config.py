@@ -7,7 +7,7 @@ from pathlib import Path
 import yaml
 
 
-def merge_nav2(base, catalogue):
+def merge_nav2(base, catalogue, settings=None):
     result=deepcopy(base)
     c=catalogue['dock_detector']['ros__parameters']
     ids=c['dock_ids']
@@ -39,6 +39,14 @@ def merge_nav2(base, catalogue):
         # Nav2 passes the optional database .id field to getRefinedPose,
         # not the lookup key. Set it explicitly to our catalogue key.
         server[dock_id]=dict(type='lidar_dock',id=dock_id,frame=c.get('expected_frame','map'),pose=pose)
+    if settings:
+        def overlay(target, source):
+            for key, value in source.items():
+                if isinstance(value, dict) and isinstance(target.get(key), dict):
+                    overlay(target[key], value)
+                else:
+                    target[key] = deepcopy(value)
+        overlay(server, settings['docking_server']['ros__parameters'])
     return result
 
 
@@ -46,9 +54,11 @@ def main():
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument('--base',type=Path,required=True,help='Existing Nav2 parameter YAML')
     p.add_argument('--catalogue',type=Path,required=True)
+    p.add_argument('--settings',type=Path,help='Optional docking_server tuning YAML')
     p.add_argument('--output',type=Path,required=True,help='New output file (exclusive creation)')
     args=p.parse_args()
-    result=merge_nav2(yaml.safe_load(args.base.read_text()),yaml.safe_load(args.catalogue.read_text()))
+    result=merge_nav2(yaml.safe_load(args.base.read_text()),yaml.safe_load(args.catalogue.read_text()),
+                      yaml.safe_load(args.settings.read_text()) if args.settings else None)
     with args.output.open('x') as f:yaml.safe_dump(json.loads(json.dumps(result)),f,sort_keys=False)
     print(f'Wrote {args.output}; review map alignment, footprint/costmap topics and velocity remapping before launching.')
 

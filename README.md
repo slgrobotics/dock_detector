@@ -57,7 +57,7 @@ Assists Nav2 Docking by publishing a `geometry_msgs/msg/PoseStamped` parking pos
 ```bash
 cd ~/robot_ws
 source /opt/ros/lyrical/setup.bash
-colcon build --packages-select dock_detector
+colcon build --packages-up-to dock_detector
 source install/setup.bash
 ros2 launch dock_detector detector.launch.py
 ```
@@ -134,6 +134,10 @@ establish hardware accuracy or closed-loop docking performance. See
 [comparison and reproduction script](results/2026-11-07-v-refinement/README.md).
 
 ## Multiple docks and robots
+
+Seggy simulation now includes this integration automatically. Its persistent
+robot configuration, launch arguments and action commands are documented in
+[Seggy simulation docking](../articubot_one/docs/seggy_docking/README.md).
 
 Named-dock selection is implemented through `dock_detector_interfaces` and the
 thin `dock_detector_nav2::LidarDock` plugin. Use `config/seggy_docks.yaml` for a
