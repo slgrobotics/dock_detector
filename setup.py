@@ -10,4 +10,5 @@ setup(
     maintainer='Sergei Grichine', maintainer_email='slg@quakemap.com',
     description='Geometric LiDAR dock landmark detector for Nav2 docking', license='Apache-2.0',
     entry_points={'console_scripts': ['dock_detector = dock_detector.node:main',
-                                        'dock_controller = dock_detector.controller:main']})
+                                        'dock_controller = dock_detector.controller:main',
+                                        'generate_nav2_docking_config = dock_detector.nav2_config:main']})

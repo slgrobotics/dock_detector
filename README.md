@@ -1,8 +1,43 @@
 Back to [Main Project Home](https://github.com/slgrobotics/articubot_one/wiki)
 
------------------
+-----------------------
 
 # LiDAR dock detector
+
+**Contents:**
+
+- [What is this dock_detector package for?](#what-is-this-dock_detector-package-for)
+- [Technical overview](#technical-overview)
+- [Run](#run)
+- [Human-friendly geometry configuration](#human-friendly-geometry-configuration)
+- [V joint refinement](#v-joint-refinement)
+- [Multiple docks and robots](#multiple-docks-and-robots)
+- [Interface](#interface)
+- [Algorithm and limitations](#algorithm-and-limitations)
+- [V landmark mode](#v-landmark-mode)
+- [Two docks in the test world](#two-docks-in-the-test-world)
+- [Fixed V placement recommendation](#fixed-v-placement-recommendation)
+- [Verify](#verify)
+- [Recorded stationary check (2026-11-05)](#recorded-stationary-check-2026-11-05)
+- [Offline flare-angle sweep](#offline-flare-angle-sweep)
+- [Joint fitting and confidence diagnostics](#joint-fitting-and-confidence-diagnostics)
+- [Reusable live-test controller](#reusable-live-test-controller)
+
+-------------
+
+## What is this dock_detector package for?
+
+A robot needs to know exactly where a docking bay is before it can park there.
+This package helps it find the bay using LiDAR, a sensor that measures distances
+with laser light. It looks for the bay's wall shapes and reports where the robot
+should park and which way the dock points.
+
+For example, Seggy can look behind itself, find a V-shaped bay, and send its
+measured position to the software that steers the robot. If there are several
+named bays, the detector looks for the one it has been asked to find. The detector
+itself does not drive the robot.
+
+## Technical overview
 
 Standalone, perception-only ROS 2 node for detecting a known trapezoidal bay
 or a two-arm V landmark using LiDAR `scan` messages. Supported `target_shape`
@@ -100,28 +135,28 @@ establish hardware accuracy or closed-loop docking performance. See
 
 ## Multiple docks and robots
 
-Nav2 supports multiple named database docks selected through DockRobot's dock_id.
-The current detector instance supports ONE startup-configured dock prior and shape;
-it does not consume dock_id, switch priors at runtime, or distinguish identical
-nearby bays reliably. A common map may contain many bays without changing the
-fitting algorithm, but target selection must constrain the correct prior.
+Named-dock selection is implemented through `dock_detector_interfaces` and the
+thin `dock_detector_nav2::LidarDock` plugin. Use `config/seggy_docks.yaml` for a
+catalogue of per-dock priors, shapes and geometry. A detector with nonempty
+`dock_ids` starts idle until its `~/select_dock` service selects a target. It then
+publishes `~/detection` (DockDetection) with dock ID and acquisition token, alongside
+the legacy PoseStamped/debug topics. Selection clears prior acquisition state;
+unknown IDs are rejected and releases require a matching token.
 
-For multiple robots, run a detector and docking server per robot namespace with
-isolated scan, detected pose, command and TF topic trees. Configure frame IDs to
-match each robot's actual TF arrangement: ROS namespaces do not automatically
-prefix frame strings. The detector launch accepts namespace and remaps /tf and
-/tf_static to relative names. This capability has not been validated in a fleet trial.
+[Build, configuration generation, Nav2 actions and testing](../dock_detector_nav2/README.md).
+The standard DockRobot dock_id selects the detector automatically through the
+plugin; no custom BT node or coordinator is needed. One catalogue generates Nav2's
+database, avoiding duplicate dock poses. Profiles without dock_ids retain continuous
+single-dock mode; identified Nav2 integration requires catalogue mode.
 
-For multiple selectable bays per robot, add a selected-dock interface that sets
-shape/template/prior and clears old acquisition state, or separate detector
-instances with a selector forwarding ONLY the active bay. Stock Nav2 plugins
-subscribe to a shared relative detected_dock_pose topic; multiple plugins alone
-do not select separate pose streams. Preserve timestamps and stop forwarding when
-unselected/stale. Neither detector nor Nav2 dock database implements fleet bay
-reservation, occupancy or assignment; that requires mission/fleet coordination.
+Each robot needs its own namespace, isolated scan/pose/velocity/TF topics and
+explicit frame configuration. Shared bay reservations remain outside this package.
+Geometrically identical nearby bays may still be ambiguous within the association
+prior; the reported dock ID does not constitute unique physical identification.
+Multi-robot operation and full Nav2 action docking are not yet validated.
 
-The trapezoid profile is now `config/seggy_t.yaml`; `config/seggy_v.yaml` remains
-the V profile. Historical result snapshots retain their original filenames.
+The trapezoid profile is `config/seggy_t.yaml`; `config/seggy_v.yaml` remains the V
+profile. Historical result snapshots retain original filenames.
 
 ## Interface
 
@@ -523,6 +558,6 @@ Verification includes planar convergence, detection acquisition/loss/jumps, froz
 TF with paused ROS time, and the detector geometry tests. These checks command no
 robot motion; they do not establish physical docking accuracy.
 
---------------
+-----------------------
 
 Back to [Main Project Home](https://github.com/slgrobotics/articubot_one/wiki)

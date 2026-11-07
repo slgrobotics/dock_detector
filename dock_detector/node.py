@@ -16,6 +16,9 @@ from visualization_msgs.msg import Marker, MarkerArray
 from tf2_ros import Buffer, TransformListener, TransformException
 from .geometry import detect_v, detect_trapezoid
 from .parameters import SHAPE_DEFAULTS, geometry_parameters
+from .catalogue import Selection
+from dock_detector_interfaces.msg import DockDetection
+from dock_detector_interfaces.srv import SelectDock
 
 
 def rotation(q):
@@ -59,9 +62,32 @@ class DockDetector(Node):
             raise ValueError('trapezoid_flare_angle must be between zero and pi/2')
         if self.cfg['target_shape'] not in ('v', 'trapezoid'):
             raise ValueError('target_shape must be v or trapezoid')
+        ids = self.declare_parameter('dock_ids', rclpy.Parameter.Type.STRING_ARRAY).value or []
+        if len(ids) != len(set(ids)) or any(not i or '.' in i or '/' in i for i in ids):
+            raise ValueError('dock_ids must be unique nonempty parameter-safe names')
+        docks = {}
+        for dock_id in ids:
+            raw = {}
+            for key, default in defaults.items():
+                # Topics, frames and timing stay common to this robot instance.
+                if key in ('target_shape', 'expected_dock_x', 'expected_dock_y', 'expected_dock_yaw_deg') or key in SHAPE_DEFAULTS:
+                    raw[key] = self.declare_parameter(f'docks.{dock_id}.{key}', self.get_parameter(key).value).value
+                else:
+                    raw[key] = self.cfg[key] if key in self.cfg else self.get_parameter(key).value
+            candidate = geometry_parameters(raw)
+            if candidate['target_shape'] not in ('v', 'trapezoid'):
+                raise ValueError(f'{dock_id}: target_shape must be v or trapezoid')
+            if not all(math.isfinite(candidate[k]) for k in ('expected_dock_x', 'expected_dock_y', 'expected_dock_yaw')):
+                raise ValueError(f'{dock_id}: prior must be finite')
+            docks[dock_id] = candidate
+        self.selection = Selection(docks)
+        self.catalogue_mode = bool(ids)
+        self.selection_stamp = 0
         self.buffer = Buffer(node=self)
         self.listener = TransformListener(self.buffer, self)
         self.pub = self.create_publisher(PoseStamped, self.cfg['pose_topic'], 10)
+        self.identified_pub = self.create_publisher(DockDetection, '~/detection', 10)
+        self.select_service = self.create_service(SelectDock, '~/select_dock', self.select_dock)
         self.status = self.create_publisher(Bool, '~/detected', 10)
         self.markers = self.create_publisher(MarkerArray, '~/markers', 10)
         self.diagnostic_pub = self.create_publisher(DiagnosticArray, '~/diagnostics', 10)
@@ -76,7 +102,27 @@ class DockDetector(Node):
         # Retry a scan briefly when TF is slightly behind the sensor stream.
         self.create_timer(0.05, self.process, clock=Clock(clock_type=ClockType.STEADY_TIME))
         self.get_logger().info(
-            f"Dock detector active: {self.cfg['target_shape']} (perception only); parameters are startup-only.")
+            ("Dock detector catalogue idle; select a named dock through ~/select_dock."
+             if self.catalogue_mode else
+             f"Dock detector active: {self.cfg['target_shape']} (perception only); parameters are startup-only."))
+
+    def select_dock(self, request, response):
+        if not self.catalogue_mode:
+            response.success = False
+            response.message = 'named selection requires nonempty dock_ids catalogue'
+        else:
+            response.success, response.message = self.selection.select(
+                request.activate, request.dock_id, request.acquisition_id)
+            if response.success:
+                self.pending = None
+                self.last_processed_stamp = None
+                self.selection_stamp = self.get_clock().now().nanoseconds
+                self.invalidate()
+                if request.activate:
+                    self.cfg = self.selection.docks[request.dock_id]
+        response.dock_id = self.selection.dock_id
+        response.acquisition_id = self.selection.acquisition_id
+        return response
 
     def on_scan(self, scan):
         self.scan_count += 1
@@ -93,6 +139,7 @@ class DockDetector(Node):
         values = dict(metrics or {})
         score = values.get('confidence')
         values.update(reason=reason, shape=self.cfg['target_shape'],
+                      dock_id=self.selection.dock_id, acquisition_id=self.selection.acquisition_id,
                       scans_received=self.scan_count, scans_processed=self.processed_count,
                       matches=self.match_count,
                       match_fraction=self.match_count/max(1, self.processed_count))
@@ -117,6 +164,9 @@ class DockDetector(Node):
         self.last_detection = None
 
     def process(self):
+        if getattr(self, 'catalogue_mode', False) and not self.selection.dock_id:
+            self.pending = None
+            return
         c = self.cfg
         now = time.monotonic()
         if self.last_detection is not None and now-self.last_detection > c['detection_timeout']:
@@ -129,6 +179,9 @@ class DockDetector(Node):
         if scan is None:
             return
         stamp = Time.from_msg(scan.header.stamp)
+        if getattr(self, 'catalogue_mode', False) and stamp.nanoseconds <= self.selection_stamp:
+            self.pending = None
+            return
         age = (self.get_clock().now()-stamp).nanoseconds / 1e9
         if age > c['max_scan_age'] or age < -0.1 or now-self.received_at > c['max_scan_age']:
             self.pending = None
@@ -201,6 +254,10 @@ class DockDetector(Node):
         pose.pose.orientation.z = math.sin(dock_yaw/2)
         pose.pose.orientation.w = math.cos(dock_yaw/2)
         self.pub.publish(pose)
+        if getattr(self, 'catalogue_mode', False):
+            identified = DockDetection(pose=pose, dock_id=self.selection.dock_id,
+                                       acquisition_id=self.selection.acquisition_id)
+            self.identified_pub.publish(identified)
         self.status.publish(Bool(data=True))
         self.last_detection = now
         line = Marker()
