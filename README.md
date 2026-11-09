@@ -139,7 +139,20 @@ ros2 action send_goal /dock_robot nav2_msgs/action/DockRobot "{use_dock_id: true
 
 # undock from either bay:
 ros2 action send_goal /undock_robot nav2_msgs/action/UndockRobot "{dock_type: lidar_dock, max_undocking_time: 60.0}" --feedback
+```
 
+Useful commands:
+```bash
+# Check nodes:
+ros2 node list|grep dock
+
+#    /dock_detector
+#    /docking_server
+
+# Check the docking database:
+ros2 param get /docking_server docks
+
+#    String values are: ['real_v_bay']
 ```
 
 Real robot docking:
