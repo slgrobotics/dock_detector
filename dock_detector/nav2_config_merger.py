@@ -22,6 +22,7 @@ def merge_nav2(base, catalogue, settings=None):
     server['lidar_dock']=dict(plugin='dock_detector_nav2::LidarDock',
         dock_direction='backward', rotate_to_dock=False,
         staging_x_offset=-.8, staging_yaw_offset=math.pi, docking_threshold=.025,
+        docking_threshold_yaw=5.0,
         use_external_detection_pose=True, use_stall_detection=False,
         external_detection_timeout=.5, external_detection_translation_x=0.,
         external_detection_translation_y=0., external_detection_rotation_roll=0.,

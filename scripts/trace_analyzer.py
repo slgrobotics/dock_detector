@@ -35,6 +35,8 @@ POSE = re.compile(
 ERROR = re.compile(
     rf'\[docking_server\]:\s+xy_cm=({NUMBER}) yaw_deg=({NUMBER}) '
     rf'filtered_xy_cm=({NUMBER})'
+    rf'(?: dx_cm={NUMBER} dy_cm={NUMBER} '
+    rf'filtered_yaw_deg=({NUMBER}) threshold_yaw_deg=({NUMBER}))?'
 )
 
 
@@ -51,6 +53,8 @@ class Sample:
     distance: float
     yaw: float
     filtered_distance: float
+    filtered_yaw: float | None = None
+    yaw_threshold: float | None = None
 
 
 def read_samples(lines):
@@ -66,10 +70,12 @@ def read_samples(lines):
             continue
         time, phase, dock, frame, *coordinates, threshold = pose.groups()
         rx, ry, dx, dy, fx, fy = map(float, coordinates)
-        distance, yaw, filtered_distance = map(float, error.groups())
+        distance, yaw, filtered_distance, filtered_yaw, yaw_threshold = (
+            float(value) if value is not None else None for value in error.groups()
+        )
         samples.append(Sample(
             float(time), phase, dock, frame, (rx, ry), (dx, dy), (fx, fy),
-            float(threshold), distance, yaw, filtered_distance,
+            float(threshold), distance, yaw, filtered_distance, filtered_yaw, yaw_threshold,
         ))
         pose = None
     return samples
@@ -121,7 +127,16 @@ def plot(samples, plt):
     distance.tick_params(labelbottom=False)
 
     yaw.axhline(0, color='0.4', linestyle='--', linewidth=1)
-    yaw.plot(elapsed, [sample.yaw for sample in samples], color=purple)
+    yaw.plot(elapsed, [sample.yaw for sample in samples], color=purple, label='Detected dock')
+    if any(sample.yaw_threshold is not None for sample in samples):
+        yaw.plot(elapsed, [sample.filtered_yaw for sample in samples],
+                 color=green, label='Filtered dock')
+        limits = [sample.yaw_threshold for sample in samples]
+        yaw.step(elapsed, limits, where='post', color='0.4', linestyle='--',
+                 linewidth=1, label='Arrival tolerance')
+        yaw.step(elapsed, [-limit if limit is not None else None for limit in limits],
+                 where='post', color='0.4', linestyle='--', linewidth=1)
+        yaw.legend(fontsize=8)
     yaw.set(xlabel='Elapsed time (s)', ylabel='Yaw error (°)', title='Logged yaw error')
     return figure
 
