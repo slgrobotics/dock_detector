@@ -161,6 +161,10 @@ Real robot docking:
 Seggy config files:
 - https://github.com/slgrobotics/articubot_one/tree/lyrical/robots/seggy/config
 
+> **Note:**
+> - code in some repositories can be in active development, keep your local code in sync.
+> - take a look at https://github.com/slgrobotics/articubot_one/blob/lyrical/scripts/pull_all_repos.sh
+
 ## Human-friendly geometry configuration
 
 Lengths are metres and all public angles are degrees. ROS 2 flattens nested YAML
