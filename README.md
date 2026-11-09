@@ -83,7 +83,7 @@ Ensure QT6 is installed - `rviz_attitude_plugin` needs it:
 sudo apt-get install -y qt6-base-dev
 ```
 
-Create a workspace directory and clone the repositories needed for Turtle SIM to work:
+Create a workspace directory and clone the repositories needed for Seggy SIM to work:
 ```bash
 mkdir -p ~/robot_ws/src
 cd ~/robot_ws/src
