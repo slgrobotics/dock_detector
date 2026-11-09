@@ -555,11 +555,23 @@ ros2 run dock_detector dock_detector --ros-args \
 
 ## Reusable live-test controller
 
-The experimental controller is available as `scripts/dock_controller.py` and as
-`ros2 run dock_detector dock_controller` after rebuilding and sourcing the workspace.
-It uses ROS TF and optionally detected parking poses; it never queries Gazebo.
-The detector node itself remains perception-only. This controller is a bounded
-positioning experiment, not a Nav2 docking action server or charging controller.
+The source script `scripts/dock_controller.py` is a complete entry point for
+`dock_detector/controller.py`. The installed command
+`ros2 run dock_detector dock_controller` runs the same implementation.
+
+Use this tool for local positioning experiments and detector previews from a
+nearby pose. For normal Seggy docking and undocking, use Nav2's `DockRobot`
+and `UndockRobot` actions with the named LiDAR dock plugin. Nav2 handles staging
+and named dock selection. The experimental controller accepts a fixed robot
+pose or listens to the detector's pose topic. Detected-goal mode needs a detector
+that is already publishing, such as a standalone single-dock profile. An idle
+named catalogue needs a dock selection before it publishes.
+
+Use `--forward` to preview the current Seggy approach direction:
+
+```bash
+ros2 run dock_detector dock_controller --detected-goal --forward
+```
 
 Start Seggy's normal navigation stack so TF, the velocity smoother, and collision
 monitor are running. Cancel navigation/docking actions and stop other autonomous
