@@ -155,7 +155,13 @@ ros2 param get /docking_server docks
 #    String values are: ['real_v_bay']
 ```
 
-Real robot docking:
+A [trace_analyzer.py](https://github.com/slgrobotics/dock_detector/blob/main/scripts/trace_analyzer.py) script produces plots for analyzing docking performance:
+
+<img alt="Dock approach plots" src="https://github.com/user-attachments/assets/f79bbef6-bc6b-43f8-9392-c2af9ad88773" />
+
+---------
+
+Real robot docking video:
 - https://youtu.be/uFLA7F-c8A0
 
 Seggy config files:
