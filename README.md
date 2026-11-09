@@ -121,13 +121,13 @@ If the build was successful, run the sim:
 cd ~/robot_ws
 ./sim.sh
 ```
-The script launches Gazebo, RViz2 and joystick driver.
+The script launches Gazebo, RViz2 and the joystick driver.
 
 The file that launches and configures the joystick is [launch/joystick.launch.py](https://github.com/slgrobotics/articubot_one/blob/lyrical/launch/joystick.launch.py).
 
 If your joystick / gamepad needs configuring, follow [this guide](https://github.com/slgrobotics/robots_bringup/blob/main/Docs/Sensors/Joystick.md).
 
-You should be able to drive the simulated robot with joystick and set Nav2 goals.
+You should be able to drive the simulated robot with the joystick and set Nav2 goals.
 
 Command docking and undocking:
 ```
@@ -184,8 +184,8 @@ v:
   max_apex_gap: 0.25
 ```
 
-Flare is each side panel's angle from the outward opening centreline. V included
-opening is twice the flare. Trapezoid rear width equals panel width; its depth is
+Flare is each side panel's angle from the outward opening centreline. The V's included
+opening angle is twice the flare. Trapezoid rear width equals panel width; its depth is
 computed as `panel_width * cos(flare_angle_deg)` (converting degrees internally).
 V detection permits partial panel observations, but rejects observed support
 extending beyond the configured panel width plus two line-distance tolerances.
@@ -263,7 +263,7 @@ profile. Historical result snapshots retain original filenames.
 - Status: `dock_detector/detected` (`std_msgs/msg/Bool`).
 - Debug: `dock_detector/markers` (`visualization_msgs/msg/MarkerArray`).
 
-In RViz add MarkerArray on the debug topic and Pose on the detected pose topic.
+In RViz, add MarkerArray on the debug topic and Pose on the detected pose topic.
 Green segments show fitted wall faces; the blue arrow shows the parking pose.
 
 The output is the desired **base_link parking XY**, projected onto z=0 in
@@ -285,11 +285,11 @@ The experimental controller converts detected dock yaw to desired robot yaw
 mean robot pose. Restart detector and controller together after rebuilding.
 
 `expected_dock_{x,y,yaw}` in `expected_frame` uses inward dock yaw and is a coarse association prior, not a
-substitute detection. `v_offset` and `trapezoid_offset` are separate scalar distances in metres.
+substitute for detection. `v_offset` and `trapezoid_offset` are separate scalar distances in metres.
 Each places its landmark behind the final point along the staging-to-final
 (reverse-docking) direction. The node selects the parameter for `target_shape`.
-`v_offset` measures final point to V apex; `trapezoid_offset` measures final point
-to inner rear-face midpoint. The output parking point is that distance ahead of
+`v_offset` measures from the final point to the V apex; `trapezoid_offset` measures from the final point
+to the inner rear-face midpoint. The output parking point is that distance ahead of
 the landmark along its opening axis. Published heading is opposite the geometric opening axis; there are no lateral
 or yaw offset parameters. The current inner rear
 face is at world x=-1.425, y=3.0; its opening points +X. An x offset of **0.425 m**
@@ -316,7 +316,7 @@ move physical/Gazebo walls, so the geometry and parameters must agree.
 
 Filter valid ranges; transform points at the scan timestamp; select a circular
 region around the expected target; extract RANSAC/TLS line segments with bounded gaps.
-In trapezoid mode require a supported rear wall plus both outward-flared side walls. Check width,
+In trapezoid mode, require a supported rear wall plus both outward-flared side walls. Check width,
 depth coverage, corner proximity, association position, and opening direction.
 The bay landmark is the midpoint of the inner rear corners; its heading is
 the rear-wall normal pointing out of the bay. For trapezoid mode, a lone wall, missing face, V, or ordinary L corner produces
@@ -450,7 +450,7 @@ history is maintained in `~/articubot_one.wiki/Docking-in-ROS2.md`.
 ## Recorded stationary check (2026-11-05)
 
 With the new rectangular bay and the restarted 5-degree-gap LiDAR, a 20-second
-perception-only run received 118 scans and published 113 detected poses (includes
+perception-only run received 118 scans and published 113 detected poses (including
 TF startup). Map-frame mean parking pose was approximately
 (-0.955253, 3.013661, yaw=0.000750). Standard deviations were
 (0.001254 m, 0.003378 m, 0.003843 rad). These are stationary repeatability figures,
@@ -604,7 +604,7 @@ ros2 run dock_detector dock_controller --goal -1.0 3.0 0.0
 ros2 run dock_detector dock_controller --goal -1.0 3.0 0.0 --execute
 ```
 
-Alternatively start the detector with hardware-calibrated parameters, verify that
+Alternatively, start the detector with hardware-calibrated parameters, verify that
 its output represents the desired base_link parking pose, and preview tracking:
 
 ```bash
@@ -617,11 +617,11 @@ wrapper can also be run after sourcing the built workspace:
 `python3 src/dock_detector/scripts/dock_controller.py --detected-goal`.
 Use `--help` for all settings; `--ros-args -r __ns:=/robot` supports namespaced nodes
 and topics. Frames themselves are set with `--fixed-frame` and `--base-frame`.
-For simulation add `--use-sim-time`; omit it on hardware. Fixed goals must use the
+For simulation, add `--use-sim-time`; omit it on hardware. Fixed goals must use the
 selected fixed frame, not uncalibrated Gazebo world coordinates.
 
-Preview creates no command publisher. Execution defaults to reverse motion at
-at most 0.035 m/s and 0.08 rad/s; `--forward` supports forward positioning.
+Preview creates no command publisher. Execution defaults to reverse motion, limited to
+0.035 m/s and 0.08 rad/s; `--forward` supports forward positioning.
 Initial range and cumulative XY travel are each limited to 1.5 m; total runtime
 is limited to 120 seconds. Success requires sustained alignment for 2 seconds.
 The controller checks active collision monitoring, competing Nav2 actions, TF

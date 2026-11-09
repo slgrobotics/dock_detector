@@ -18,7 +18,7 @@ Standard navigation settings are merged at launch; no manually maintained full N
 
 ![Final approach trajectories](trajectories.png)
 
-Run 01 used the initial 0.8 m staging offset. Detection gaps exceeded the unchanged 0.5 s freshness limit; retries exhausted and all pipeline commands stopped. Its in-process truth reader failed on a protobuf integer string; a separate ground_truth.jsonl capture is retained, and no settled accuracy is claimed for this run. The trial recorder was fixed before subsequent runs.
+Run 01 used the initial 0.8 m staging offset. Detection gaps exceeded the unchanged 0.5 s freshness limit; the server exhausted its retries and all pipeline commands stopped. Its in-process truth reader failed on a protobuf integer string; a separate ground_truth.jsonl capture is retained, and no settled accuracy is claimed for this run. The trial recorder was fixed before subsequent runs.
 
 The user restarted Seggy simulation before run 02. All later runs use 0.5 m staging; floor crosses remain 0.8 m references. Run 02 succeeded with one retry. Nav2 staging uses the pre-existing 0.3 m general goal tolerance, so staging can leave lateral error and initial acquisition is not guaranteed; navigation tolerances were preserved.
 
@@ -26,7 +26,7 @@ Pose errors use independent Gazebo world poses after a two-second settling windo
 
 cmd_vel_raw, cmd_vel_smoothed, cmd_vel_nav and diff_cont/cmd_vel were recorded. Every completed trial ended with zero commands on all four topics. Gazebo poses show post-result coasting, so result-time pose is not treated as settled pose.
 
-71 unit/launch/geometry/controller tests passed, including namespace-default and preserved navigation settings checks. Nav2 plugin lifecycle/identity tests were performed in the previous named-nav2 result set. No Nav2 source changes, package installations or charging hardware changes.
+71 unit/launch/geometry/controller tests passed, including namespace-default and preserved navigation settings checks. Nav2 plugin lifecycle/identity tests were performed in the previous named-nav2 result set. There were no Nav2 source changes, package installations or charging hardware changes.
 
 During navigation reload, both the original standard Nav2 container and the docking-enabled container exited with code -6 on shutdown; the latter logged an invalid-pointer/class-loader error. This shutdown issue was not diagnosed or fixed. The subsequent normal full-simulation restart loaded and activated the docking stack successfully. No runtime crash occurred during the recorded actions.
 
