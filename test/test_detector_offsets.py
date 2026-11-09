@@ -1,4 +1,4 @@
-from dock_detector.parameters import geometry_parameters
+from dock_detector.shape_parameters import geometry_parameters
 """Check shape-specific scalar offsets in both prior inversion and output pose."""
 import math,time
 from pathlib import Path
@@ -11,8 +11,8 @@ from sensor_msgs.msg import LaserScan
 from rclpy.clock import ClockType
 from rclpy.time import Time
 from rclpy.node import Node
-from dock_detector.geometry import Detection
-from dock_detector.node import DockDetector
+from dock_detector.core.geometry import Detection
+from dock_detector.dock_detector_node import DockDetector
 
 
 @pytest.mark.parametrize('shape,distance', [('v',.6),('trapezoid',.425)])
@@ -37,7 +37,7 @@ def test_scalar_offset_applies_in_landmark_direction_for_both_shapes(shape,dista
         pub=SimpleNamespace(publish=poses.append),status=SimpleNamespace(publish=statuses.append),
         markers=SimpleNamespace(publish=markers.append))
     detected=Detection(np.array([4.,5.]),.7,(),.001)
-    matcher='dock_detector.node.detect_v' if shape=='v' else 'dock_detector.node.detect_trapezoid'
+    matcher='dock_detector.dock_detector_node.detect_v' if shape=='v' else 'dock_detector.dock_detector_node.detect_trapezoid'
     with patch(matcher,return_value=detected) as match:
         DockDetector.process(node)
     # Map (1,2) rotated +90 degrees then translated (10,20) = odom (8,21).

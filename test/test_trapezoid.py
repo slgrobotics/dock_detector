@@ -5,7 +5,7 @@ import xml.etree.ElementTree as ET
 
 import numpy as np
 import pytest
-from dock_detector.geometry import detect_trapezoid, angle_error
+from dock_detector.core.geometry import detect_trapezoid, angle_error
 
 
 def bay(width=.5, depth=.5*math.cos(math.radians(32.5)), flare=math.radians(32.5), yaw=0., center=(0., 0.), noise=.003):

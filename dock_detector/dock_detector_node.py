@@ -1,4 +1,4 @@
-"""Perception only: no actions, velocity commands, or simulator ground truth."""
+"""ROS node that detects dock poses from laser scans and publishes diagnostics."""
 import json
 import math
 import time
@@ -14,18 +14,12 @@ from std_msgs.msg import Bool, Float32
 from diagnostic_msgs.msg import DiagnosticArray, DiagnosticStatus, KeyValue
 from visualization_msgs.msg import Marker, MarkerArray
 from tf2_ros import Buffer, TransformListener, TransformException
-from .geometry import detect_v, detect_trapezoid
-from .parameters import SHAPE_DEFAULTS, geometry_parameters
+from .core.geometry import detect_v, detect_trapezoid
+from .core.transforms import rotation
+from .shape_parameters import SHAPE_DEFAULTS, geometry_parameters
 from .catalogue import Selection
 from dock_detector_interfaces.msg import DockDetection
 from dock_detector_interfaces.srv import SelectDock
-
-
-def rotation(q):
-    x, y, z, w = q.x, q.y, q.z, q.w
-    return np.array([[1-2*(y*y+z*z), 2*(x*y-z*w), 2*(x*z+y*w)],
-                     [2*(x*y+z*w), 1-2*(x*x+z*z), 2*(y*z-x*w)],
-                     [2*(x*z-y*w), 2*(y*z+x*w), 1-2*(x*x+y*y)]])
 
 
 def transform_points(xy, tf):

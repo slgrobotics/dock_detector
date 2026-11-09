@@ -3,7 +3,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 import pytest
 from rclpy.node import Node
-from dock_detector.node import DockDetector
+from dock_detector.dock_detector_node import DockDetector
 
 
 def test_rectangle_mode_is_rejected():

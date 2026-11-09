@@ -6,7 +6,7 @@ import numpy as np
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
-from dock_detector.simulation import panel_polygons
+from dock_detector.core.simulation import panel_polygons
 ROOT=Path(sys.argv[1]);meta=json.loads((ROOT/'metadata.json').read_text());geometry=json.loads((ROOT/'placement_geometry.json').read_text());rows=[json.loads(l) for l in (ROOT/'samples.jsonl').read_text().splitlines()]
 def longest(flags):
     best=run=0

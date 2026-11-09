@@ -1,11 +1,11 @@
-from dock_detector.parameters import geometry_parameters
+from dock_detector.shape_parameters import geometry_parameters
 """World panels, detector profiles, markings and parking clearances agree."""
 import math
 from pathlib import Path
 import xml.etree.ElementTree as ET
 import numpy as np
 import yaml
-from dock_detector.simulation import panel_polygons,polygons_intersect,polygon_clearance
+from dock_detector.core.simulation import panel_polygons,polygons_intersect,polygon_clearance
 
 PACKAGE=Path(__file__).resolve().parents[1]
 WORLD=ET.parse(PACKAGE.parent/'articubot_one/assets/worlds/test_robot_world.sdf')

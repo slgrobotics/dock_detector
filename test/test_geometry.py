@@ -1,6 +1,6 @@
 import math
 import numpy as np
-from dock_detector.geometry import detect_v, angle_error
+from dock_detector.core.geometry import detect_v, angle_error
 
 
 def target(apex=(0., 0.), yaw=0., noise=0., gap=0.02, flare=math.radians(55)):
@@ -59,7 +59,7 @@ def test_sixty_five_degree_v_supported_when_configured():
 
 
 def test_v_does_not_accept_displaced_trapezoid_virtual_apex():
-    from dock_detector.refinement import template
+    from dock_detector.core.refinement import template
     faces = template(.5, .5*math.cos(math.radians(32.5)), math.radians(32.5))
     points = np.vstack([a+(b-a)*np.linspace(.02,.98,40)[:,None] for a,b in faces])
     assert detect_v(points, (0.,0.), 0., expected_angle=math.radians(65)) is None

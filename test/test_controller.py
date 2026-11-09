@@ -8,8 +8,8 @@ from geometry_msgs.msg import PoseStamped, TransformStamped
 from rclpy.time import Time
 from rclpy.clock import ClockType
 
-from dock_detector.control import Limits, PoseController, GoalMemory, cached_reverse_command
-from dock_detector.controller import DockController, parser, validate
+from dock_detector.core.pose_controller import Limits, PoseController, GoalMemory, cached_reverse_command
+from dock_detector.docking_controller import DockController, parser, validate
 
 
 def test_reverse_controller_converges_from_rough_staging():
@@ -48,9 +48,9 @@ def test_frozen_tf_rejected_even_when_ros_clock_is_paused():
     node = SimpleNamespace(args=config(), robot_stamp=None, robot_stamp_wall=None,
                            buffer=SimpleNamespace(lookup_transform=lambda *a: tf),
                            get_clock=lambda: SimpleNamespace(now=lambda: Time(seconds=10, clock_type=ClockType.ROS_TIME)))
-    with patch('dock_detector.controller.time.monotonic', return_value=100.):
+    with patch('dock_detector.docking_controller.time.monotonic', return_value=100.):
         assert DockController.robot(node) == (0., 0., 0.)
-    with patch('dock_detector.controller.time.monotonic', return_value=101.):
+    with patch('dock_detector.docking_controller.time.monotonic', return_value=101.):
         with pytest.raises(RuntimeError, match='stopped updating'):
             DockController.robot(node)
 
@@ -70,7 +70,7 @@ def test_detection_acquisition_duplicate_loss_and_jump():
     # Inward Nav2 dock yaw pi corresponds to reverse parked robot yaw zero.
     msg.pose.orientation.z = 1.
     msg.pose.orientation.w = 0.
-    with patch('dock_detector.controller.time.monotonic', return_value=100.):
+    with patch('dock_detector.docking_controller.time.monotonic', return_value=100.):
         for i in range(5):
             msg.header.stamp = Time(seconds=9.8+i*.01).to_msg()
             DockController.on_pose(node, msg)
@@ -82,7 +82,7 @@ def test_detection_acquisition_duplicate_loss_and_jump():
         DockController.on_pose(node, msg)
         assert node.goal is None and len(node.samples) == 1
         assert node.goal_memory.goal is None  # Jump revokes blind-motion goal.
-    with patch('dock_detector.controller.time.monotonic', return_value=101.):
+    with patch('dock_detector.docking_controller.time.monotonic', return_value=101.):
         assert DockController.detected_goal(node) is None
         assert len(node.samples) == 0
 
@@ -140,9 +140,9 @@ def test_run_bridges_detection_only_and_limits_command_rate(fault):
         clock[0] += .01  # 100 Hz callback traffic must not become 100 Hz commands.
         if fault == 'action' and clock[0] > 101.3:
             node.actions['navigate_to_pose'] = True
-    with patch('dock_detector.controller.time.monotonic', side_effect=lambda: clock[0]), \
-         patch('dock_detector.controller.rclpy.spin_once', side_effect=spin), \
-         patch('dock_detector.controller.rclpy.ok', return_value=True):
+    with patch('dock_detector.docking_controller.time.monotonic', side_effect=lambda: clock[0]), \
+         patch('dock_detector.docking_controller.rclpy.spin_once', side_effect=spin), \
+         patch('dock_detector.docking_controller.rclpy.ok', return_value=True):
         with pytest.raises(RuntimeError):
             DockController.run(node, lambda: clock[0] >= 106.)
     assert published
@@ -172,13 +172,13 @@ def test_isolated_pose_after_gap_does_not_refresh_memory():
     # Inward Nav2 dock yaw pi corresponds to reverse parked robot yaw zero.
     msg.pose.orientation.z = 1.
     msg.pose.orientation.w = 0.
-    with patch('dock_detector.controller.time.monotonic', return_value=100.):
+    with patch('dock_detector.docking_controller.time.monotonic', return_value=100.):
         for i in range(5):
             msg.header.stamp = Time(seconds=9.8+i*.01).to_msg()
             DockController.on_pose(node, msg)
     assert node.goal_memory.wall == 100.
     now_ros[0] = 11.
-    with patch('dock_detector.controller.time.monotonic', return_value=101.):
+    with patch('dock_detector.docking_controller.time.monotonic', return_value=101.):
         msg.header.stamp = Time(seconds=10.9).to_msg()
         DockController.on_pose(node, msg)
     assert node.goal is None and len(node.samples) == 1

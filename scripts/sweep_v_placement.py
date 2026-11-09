@@ -3,10 +3,10 @@
 import concurrent.futures,csv,hashlib,json,math,time
 from pathlib import Path
 import argparse,numpy as np,yaml
-from dock_detector.geometry import detect_v,angle_error
-from dock_detector.simulation import simulate_scan,footprint_free,footprint_clearance
+from dock_detector.core.geometry import detect_v,angle_error
+from dock_detector.core.simulation import simulate_scan,footprint_free,footprint_clearance
 PACKAGE=Path(__file__).resolve().parents[1]
-from dock_detector.parameters import geometry_parameters
+from dock_detector.shape_parameters import geometry_parameters
 CFG=yaml.safe_load((PACKAGE/'config/seggy_t.yaml').read_text())['dock_detector']['ros__parameters']
 _flat = {}
 for key, value in CFG.items():

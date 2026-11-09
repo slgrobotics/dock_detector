@@ -18,7 +18,7 @@ def test_catalogue_generates_nav2_poses_without_mutating_original():
     import math
     from pathlib import Path
     import yaml
-    from dock_detector.nav2_config import merge_nav2
+    from dock_detector.nav2_config_merger import merge_nav2
     c=yaml.safe_load((Path(__file__).parents[1]/'config/seggy_docks.yaml').read_text())
     base={'docking_server':{'ros__parameters':{'dock_backwards':False}}}
     params=merge_nav2(base,c)['docking_server']['ros__parameters']

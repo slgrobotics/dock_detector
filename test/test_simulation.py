@@ -2,7 +2,7 @@ import math
 from pathlib import Path
 import xml.etree.ElementTree as ET
 import numpy as np
-from dock_detector.simulation import panel_polygons, polygons_intersect, simulate_scan
+from dock_detector.core.simulation import panel_polygons, polygons_intersect, simulate_scan
 
 
 def test_offline_boxes_match_current_sdf():
@@ -32,7 +32,7 @@ def test_convex_clearance_detects_contact_and_separation():
 
 
 def test_v_scan_and_match_across_requested_angles():
-    from dock_detector.geometry import detect_v
+    from dock_detector.core.geometry import detect_v
     for degree in (20,25,30,35,40,45):
         flare=math.radians(degree)
         points,support=simulate_scan(1.225,0.,0.,flare,np.random.default_rng(20261106),shape='v')
@@ -44,7 +44,7 @@ def test_v_scan_and_match_across_requested_angles():
 
 
 def test_v_is_narrower_and_changes_parking_clearance():
-    from dock_detector.simulation import footprint_free
+    from dock_detector.core.simulation import footprint_free
     body=np.array([[.28,0.],[.235,-.235],[0.,-.28],[-.235,-.235],
                    [-.3,-.14],[-.3,.14],[-.235,.235],[0.,.28],[.235,.235]])
     assert footprint_free(.425,0.,0.,math.radians(32.5),body)
@@ -53,7 +53,7 @@ def test_v_is_narrower_and_changes_parking_clearance():
 
 
 def test_seventy_cm_v_panels_and_sensor_support():
-    from dock_detector.geometry import detect_v
+    from dock_detector.core.geometry import detect_v
     length=.7
     for degree in (40,45,50,55,60):
         flare=math.radians(degree)
@@ -69,7 +69,7 @@ def test_seventy_cm_v_panels_and_sensor_support():
 
 
 def test_euclidean_polygon_clearance():
-    from dock_detector.simulation import polygon_clearance
+    from dock_detector.core.simulation import polygon_clearance
     square=np.array([[0,0],[1,0],[1,1],[0,1]],dtype=float)
     assert polygon_clearance(square,square+[.5,0])==0
     assert abs(polygon_clearance(square,square+[2.,0])-1.)<1e-12

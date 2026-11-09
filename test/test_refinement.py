@@ -2,8 +2,8 @@
 import math
 import numpy as np
 import pytest
-from dock_detector.geometry import Detection, detect_trapezoid, angle_error
-from dock_detector.refinement import template, transform, refine_bay
+from dock_detector.core.geometry import Detection, detect_trapezoid, angle_error
+from dock_detector.core.refinement import template, transform, refine_bay
 
 WIDTH = .5
 DEPTH = .5*math.cos(math.radians(32.5))
@@ -63,7 +63,7 @@ def test_match_diagnostics_and_baseline_switch():
 
 
 def test_v_joint_fit_corrects_pose_and_keeps_equal_panels():
-    from dock_detector.refinement import v_template, refine_v
+    from dock_detector.core.refinement import v_template, refine_v
     truth=np.array([1., -2., .7])
     local=v_template(.7,math.radians(55))
     panels=transform(local,truth)
@@ -82,8 +82,8 @@ def test_v_joint_fit_corrects_pose_and_keeps_equal_panels():
 
 
 def test_v_detector_refinement_switch_and_prior_guard():
-    from dock_detector.geometry import detect_v
-    from dock_detector.refinement import v_template
+    from dock_detector.core.geometry import detect_v
+    from dock_detector.core.refinement import v_template
     rng=np.random.default_rng(8)
     points=np.vstack([a+(b-a)*np.linspace(.04,.95,40)[:,None] for a,b in v_template(.7,math.radians(55))])
     points+=rng.normal(0,.003,points.shape)

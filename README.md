@@ -569,7 +569,7 @@ ros2 run dock_detector dock_detector --ros-args \
 ## Reusable live-test controller
 
 The source script `scripts/dock_controller.py` is a complete entry point for
-`dock_detector/controller.py`. The installed command
+`dock_detector/docking_controller.py`. The installed command
 `ros2 run dock_detector dock_controller` runs the same implementation.
 
 Use this tool for local positioning experiments and detector previews from a

@@ -10,8 +10,8 @@ from geometry_msgs.msg import TransformStamped
 from sensor_msgs.msg import LaserScan
 from dock_detector_interfaces.srv import SelectDock
 from dock_detector_interfaces.msg import DockDetection
-from dock_detector.node import DockDetector
-from dock_detector.geometry import Detection
+from dock_detector.dock_detector_node import DockDetector
+from dock_detector.core.geometry import Detection
 
 
 def test_named_detector_selection_and_identified_measurement():
@@ -46,7 +46,7 @@ def test_named_detector_selection_and_identified_measurement():
         scan.angle_increment=.1;scan.ranges=[1.,1.2,1.4]
         scan.header.stamp=detector.get_clock().now().to_msg()
         with patch.object(detector.buffer,'lookup_transform',return_value=tf), \
-             patch('dock_detector.node.detect_v',return_value=Detection(np.array([0.,6.6]),-np.pi/2,(),.001)):
+             patch('dock_detector.dock_detector_node.detect_v',return_value=Detection(np.array([0.,6.6]),-np.pi/2,(),.001)):
             detector.on_scan(scan)
         spin()
         assert len(observations)==1

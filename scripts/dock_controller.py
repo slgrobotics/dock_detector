@@ -9,7 +9,7 @@ It’s useful for previewing detected poses and testing short approaches from a 
 For routine Seggy docking, use Nav2’s /dock_robot, which handles staging and named dock selection.
 """
 
-from dock_detector.controller import main
+from dock_detector.docking_controller import main
 
 if __name__ == '__main__':
     raise SystemExit(main())

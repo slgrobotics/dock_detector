@@ -3,7 +3,7 @@ import math
 from pathlib import Path
 import pytest
 from rclpy.parameter import parameter_dict_from_yaml_file
-from dock_detector.parameters import SHAPE_DEFAULTS, geometry_parameters
+from dock_detector.shape_parameters import SHAPE_DEFAULTS, geometry_parameters
 
 
 def defaults():
