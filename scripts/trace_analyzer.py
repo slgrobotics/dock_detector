@@ -12,10 +12,10 @@ The script requires Matplotlib and expects one docking run per input file.
 
 To prepare the log file, run the robot and copy the portion of the terminal output where the docking_server prints appear. The log should contain lines like:
 
-[component_...] [INFO] [...] [docking_server]: DOCK: approach id=v_bay frame=odom scan_age_ms=100.0 robot=(0.275,5.596) detected=(0.041,6.243) filtered=(0.041,6.243) threshold_cm=2.50
-[component_...] [INFO] [...] [docking_server]:       xy_cm=68.83 yaw_deg=-1.39 filtered_xy_cm=68.83 dx_cm=+23.43 dy_cm=-64.72
-[component_...] [INFO] [...] [docking_server]: DOCK: approach id=v_bay frame=odom scan_age_ms=100.0 robot=(0.276,5.611) detected=(0.041,6.248) filtered=(0.041,6.244) threshold_cm=2.50
-[component_...] [INFO] [...] [docking_server]:       xy_cm=67.82 yaw_deg=-1.45 filtered_xy_cm=67.44 dx_cm=+23.49 dy_cm=-63.62
+[component_...] [INFO] [...] [docking_server]: DOCK: approach id=v_bay frame=odom scan_age_ms=100.0 robot=(0.275,5.596) detected=(0.041,6.243) filtered=(0.041,6.243) threshold_cm=2.50 threshold_yaw_deg=5.00
+[component_...] [INFO] [...] [docking_server]:       xy_cm=68.83 yaw_deg=-1.39 filtered_xy_cm=68.83 dx_cm=+23.43 dy_cm=-64.72 filtered_yaw_deg=-1.39
+[component_...] [INFO] [...] [docking_server]: DOCK: approach id=v_bay frame=odom scan_age_ms=100.0 robot=(0.276,5.611) detected=(0.041,6.248) filtered=(0.041,6.244) threshold_cm=2.50 threshold_yaw_deg=5.00
+[component_...] [INFO] [...] [docking_server]:       xy_cm=67.82 yaw_deg=-1.45 filtered_xy_cm=67.44 dx_cm=+23.49 dy_cm=-63.62 filtered_yaw_deg=-1.45
 
 """
 
@@ -31,12 +31,13 @@ POSE = re.compile(
     rf'\[({NUMBER})\]\s+\[docking_server\]:\s+'
     rf'DOCK: (approach|arrival) id=(\S+) frame=(\S+) .*?'
     rf'robot={POINT} detected={POINT} filtered={POINT} threshold_cm=({NUMBER})'
+    rf' threshold_yaw_deg=({NUMBER})'
 )
 ERROR = re.compile(
     rf'\[docking_server\]:\s+xy_cm=({NUMBER}) yaw_deg=({NUMBER}) '
     rf'filtered_xy_cm=({NUMBER})'
-    rf'(?: dx_cm={NUMBER} dy_cm={NUMBER} '
-    rf'filtered_yaw_deg=({NUMBER}) threshold_yaw_deg=({NUMBER}))?'
+    rf' dx_cm={NUMBER} dy_cm={NUMBER} '
+    rf'filtered_yaw_deg=({NUMBER})'
 )
 
 
@@ -53,8 +54,8 @@ class Sample:
     distance: float
     yaw: float
     filtered_distance: float
-    filtered_yaw: float | None = None
-    yaw_threshold: float | None = None
+    filtered_yaw: float
+    yaw_threshold: float
 
 
 def read_samples(lines):
@@ -68,14 +69,12 @@ def read_samples(lines):
         error = ERROR.search(line)
         if pose is None or error is None:
             continue
-        time, phase, dock, frame, *coordinates, threshold = pose.groups()
+        time, phase, dock, frame, *coordinates, threshold, yaw_limit = pose.groups()
         rx, ry, dx, dy, fx, fy = map(float, coordinates)
-        distance, yaw, filtered_distance, filtered_yaw, yaw_threshold = (
-            float(value) if value is not None else None for value in error.groups()
-        )
+        distance, yaw, filtered_distance, filtered_yaw = map(float, error.groups())
         samples.append(Sample(
             float(time), phase, dock, frame, (rx, ry), (dx, dy), (fx, fy),
-            float(threshold), distance, yaw, filtered_distance, filtered_yaw, yaw_threshold,
+            float(threshold), distance, yaw, filtered_distance, filtered_yaw, float(yaw_limit),
         ))
         pose = None
     return samples
@@ -128,15 +127,14 @@ def plot(samples, plt):
 
     yaw.axhline(0, color='0.4', linestyle='--', linewidth=1)
     yaw.plot(elapsed, [sample.yaw for sample in samples], color=purple, label='Detected dock')
-    if any(sample.yaw_threshold is not None for sample in samples):
-        yaw.plot(elapsed, [sample.filtered_yaw for sample in samples],
-                 color=green, label='Filtered dock')
-        limits = [sample.yaw_threshold for sample in samples]
-        yaw.step(elapsed, limits, where='post', color='0.4', linestyle='--',
-                 linewidth=1, label='Arrival tolerance')
-        yaw.step(elapsed, [-limit if limit is not None else None for limit in limits],
-                 where='post', color='0.4', linestyle='--', linewidth=1)
-        yaw.legend(fontsize=8)
+    yaw.plot(elapsed, [sample.filtered_yaw for sample in samples],
+             color=green, label='Filtered dock')
+    limits = [sample.yaw_threshold for sample in samples]
+    yaw.step(elapsed, limits, where='post', color='0.4', linestyle='--',
+             linewidth=1, label='Arrival tolerance')
+    yaw.step(elapsed, [-limit for limit in limits], where='post',
+             color='0.4', linestyle='--', linewidth=1)
+    yaw.legend(fontsize=8)
     yaw.set(xlabel='Elapsed time (s)', ylabel='Yaw error (°)', title='Logged yaw error')
     return figure
 
@@ -154,7 +152,7 @@ def main():
     except OSError as exc:
         parser.error(str(exc))
     if not samples:
-        parser.error('no complete docking approach or arrival samples found')
+        parser.error('no complete samples found (expected threshold_yaw_deg on the pose line and filtered_yaw_deg on the error line)')
     if len({(sample.dock, sample.frame) for sample in samples}) > 1:
         parser.error('the log must contain samples for a single dock and coordinate frame')
     if any(sample.phase == 'arrival' for sample in samples[:-1]):
@@ -175,8 +173,15 @@ def main():
         except (OSError, ValueError) as exc:
             parser.error(str(exc))
     else:
-        plt.show()
+        figure.set_size_inches(figure.get_size_inches() * 3)
+        try:
+            plt.show()
+        finally:
+            plt.close(figure)
 
 
 if __name__ == '__main__':
-    main()
+    try:
+        main()
+    except KeyboardInterrupt:
+        raise SystemExit(130) from None
