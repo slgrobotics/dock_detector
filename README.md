@@ -9,6 +9,7 @@ Back to [Main Project Home](https://github.com/slgrobotics/articubot_one/wiki)
 - [What is this package for?](#what-is-this-package-for)
 - [Technical overview](#technical-overview)
 - [Run](#run)
+- [Demos with Seggy robot](#demos-with-seggy-robot)
 - [Human-friendly geometry configuration](#human-friendly-geometry-configuration)
 - [V joint refinement](#v-joint-refinement)
 - [Multiple docks and robots](#multiple-docks-and-robots)
@@ -70,6 +71,82 @@ Override `params_file`, `use_sim_time`, or `namespace` as launch arguments. Para
 are read at startup; restart after editing them. Defaults target Seggy's current
 simulation and must be calibrated for other worlds/hardware. Do not run two
 publishers on the docking pose topic.
+
+## Demos with Seggy robot
+
+Initialize *rosdep* once if you haven't done it before:
+```bash
+sudo rosdep init
+```
+Ensure QT6 is installed - `rviz_attitude_plugin` needs it:
+```
+sudo apt-get install -y qt6-base-dev
+```
+
+Create a workspace directory and clone the repositories needed for Turtle SIM to work:
+```bash
+mkdir -p ~/robot_ws/src
+cd ~/robot_ws/src
+
+git clone https://github.com/slgrobotics/articubot_one.git -b lyrical
+git clone https://github.com/slgrobotics/outdoors_loc_nav.git -b lyrical
+git clone https://github.com/slgrobotics/ros_battery_monitoring.git -b lyrical
+git clone https://github.com/slgrobotics/map_orientation_saver.git
+git clone https://github.com/slgrobotics/scan_to_range.git
+git clone https://github.com/slgrobotics/slg_bt_plugins.git
+git clone https://github.com/slgrobotics/rviz_attitude_plugin.git
+git clone https://github.com/slgrobotics/dock_detector.git
+git clone https://github.com/slgrobotics/dock_detector_interfaces.git
+git clone https://github.com/slgrobotics/dock_detector_nav2.git
+```
+
+Install dependencies and try building:
+```
+cd ~/robot_ws
+rosdep update
+rosdep install --from-paths src --ignore-src -r -y
+colcon build
+```
+
+Create a shell script `~/robot_ws/sim.sh` to run the sim:
+```bash
+echo '#!/bin/bash
+colcon build
+source ~/robot_ws/install/setup.bash
+ros2 launch articubot_one seggy.launch.py' > ~/robot_ws/sim.sh; chmod +x ~/robot_ws/sim.sh
+```
+
+If the build was successful, run the sim:
+```bash
+cd ~/robot_ws
+./sim.sh
+```
+The script launches Gazebo, RViz2 and joystick driver.
+
+The file that launches and configures the joystick is [launch/joystick.launch.py](https://github.com/slgrobotics/articubot_one/blob/lyrical/launch/joystick.launch.py).
+
+If your joystick / gamepad needs configuring, follow [this guide](https://github.com/slgrobotics/robots_bringup/blob/main/Docs/Sensors/Joystick.md).
+
+You should be able to drive the simulated robot with joystick and set Nav2 goals.
+
+Command docking and undocking:
+```
+# v_bay:
+ros2 action send_goal /dock_robot nav2_msgs/action/DockRobot "{use_dock_id: true, dock_id: v_bay, navigate_to_staging_pose: true}" --feedback
+
+# trapezoid_bay:
+ros2 action send_goal /dock_robot nav2_msgs/action/DockRobot "{use_dock_id: true, dock_id: trapezoid_bay, navigate_to_staging_pose: true}" --feedback
+
+# undock from either bay:
+ros2 action send_goal /undock_robot nav2_msgs/action/UndockRobot "{dock_type: lidar_dock, max_undocking_time: 60.0}" --feedback
+
+```
+
+Real robot docking:
+- https://youtu.be/uFLA7F-c8A0
+
+Seggy config files:
+- https://github.com/slgrobotics/articubot_one/tree/lyrical/robots/seggy/config
 
 ## Human-friendly geometry configuration
 
