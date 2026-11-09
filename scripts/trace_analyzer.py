@@ -1,5 +1,23 @@
 #!/usr/bin/env python3
-"""Plot a docking_server approach trace from a log file."""
+"""
+Plot a docking_server approach trace from a log file.
+
+It opens a Matplotlib window with the robot’s path and dock estimates, distance to the dock and arrival threshold, and yaw error over time.
+
+     ~/robot_ws/src/dock_detector/scripts/trace_analyzer.py "/path/to/trace.log"
+
+Use --output dock-approach.png to save the plot without opening a window.
+
+The script requires Matplotlib and expects one docking run per input file.
+
+To prepare the log file, run the robot and copy the portion of the terminal output where the docking_server prints appear. The log should contain lines like:
+
+[component_...] [INFO] [...] [docking_server]: DOCK: approach id=v_bay frame=odom scan_age_ms=100.0 robot=(0.275,5.596) detected=(0.041,6.243) filtered=(0.041,6.243) threshold_cm=2.50
+[component_...] [INFO] [...] [docking_server]:       xy_cm=68.83 yaw_deg=-1.39 filtered_xy_cm=68.83 dx_cm=+23.43 dy_cm=-64.72
+[component_...] [INFO] [...] [docking_server]: DOCK: approach id=v_bay frame=odom scan_age_ms=100.0 robot=(0.276,5.611) detected=(0.041,6.248) filtered=(0.041,6.244) threshold_cm=2.50
+[component_...] [INFO] [...] [docking_server]:       xy_cm=67.82 yaw_deg=-1.45 filtered_xy_cm=67.44 dx_cm=+23.49 dy_cm=-63.62
+
+"""
 
 import argparse
 from dataclasses import dataclass
