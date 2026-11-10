@@ -141,6 +141,58 @@ ros2 action send_goal /dock_robot nav2_msgs/action/DockRobot "{use_dock_id: true
 ros2 action send_goal /undock_robot nav2_msgs/action/UndockRobot "{dock_type: lidar_dock, max_undocking_time: 60.0}" --feedback
 ```
 
+Seggy's docking overlays enable the `docking_alignment` wrapper. Send named
+goals to `/dock_robot`. The wrapper forwards the position phase to Nav2 on
+`dock_robot_position`, waits for the robot to stop, then reacquires the same
+dock and turns in place through the velocity smoother and collision monitor.
+The public action succeeds once yaw settles and position is within the alignment
+limit. Set `docking_alignment.ros__parameters.alignment_position_margin` in
+metres. Nav2 uses the original position tolerance for the handoff. The wrapper
+adds the margin during yaw correction and for its final position check. Seggy
+uses 0.02 m, giving a 4.5 cm alignment limit after the 2.5 cm handoff. Set the
+margin to 0.0 to use the original position tolerance throughout.
+
+Set `lidar_dock.docking_threshold` in metres and
+`lidar_dock.docking_threshold_yaw` in degrees in the overlay. The launch gives
+the wrapper both tolerances and sets Nav2's yaw threshold to 180° for its
+position-only phase. The `DOCK:` trace shows the final yaw tolerance throughout.
+With `trace_enabled: true`, Nav2 marks its handoff with `phase=position_reached`
+and the wrapper appends alignment samples in the same format. Copy one complete
+run into `trace_analyzer.py` to plot approach and alignment together.
+The wrapper also logs `ALIGN:` for Nav2 positioning, detector reacquisition, the
+stationary handoff, turning, settling, cleanup, and the final result. During
+turning and settling it shows position and yaw errors, both limits, the
+commanded turn rate, and measured odometry. The yaw error is target heading
+minus robot heading. Filter the launch output with `grep --line-buffered 'ALIGN:'`.
+Use
+`docking_alignment.ros__parameters` to tune the angular speed and timeout.
+
+Run other motion commands after the public docking goal terminates. If rotation
+is blocked, the dock pose goes stale, or the robot leaves the position tolerance,
+the wrapper stops and returns failure. The caller can decide whether to retry.
+
+For a forward-facing charging dock, enable insertion after yaw settles by
+setting `max_insertion_travel` in metres. The default is `0.0` (disabled).
+For example, enable a maximum of 5 cm for the hardware bay only:
+
+```yaml
+docking_alignment:
+  ros__parameters:
+    max_insertion_travel: 0.0
+    docks:
+      real_v_bay:
+        max_insertion_travel: 0.05
+```
+
+The wrapper creeps forward at up to `insertion_speed` (default 0.01 m/s)
+through the same collision-monitored path. It brakes before the odometry
+limit and stops early if a fresh `BatteryState` reports `CHARGING` on
+`battery/battery_state`. The action succeeds once the robot is stationary
+and charging is confirmed. If motion is blocked or charging is unconfirmed
+before `insertion_timeout` (default 15 s), the wrapper stops and fails the
+action. The travel limit is based on odometry. Insertion plot samples
+use the dock pose latched at alignment.
+
 Useful commands:
 ```bash
 # Check nodes:
