@@ -4,6 +4,8 @@ Plot the approach, yaw alignment, and insertion from a docking trace.
 
 The plot shows the robot path by phase, distance to the dock, and yaw error.
 When insertion status lines are present, it also plots forward travel and its cap.
+Scroll to zoom the entire figure, left-drag to pan it, and press R to fit it to the window.
+The interactive viewer requires Qt with SVG support.
 
      ~/robot_ws/src/dock_detector/scripts/trace_analyzer.py "/path/to/trace.log"
 
@@ -22,9 +24,12 @@ To prepare the log file, run the robot and copy the portion of the terminal outp
 
 import argparse
 from dataclasses import dataclass
+from importlib import import_module
+from io import BytesIO
 from itertools import groupby
 from pathlib import Path
 import re
+import signal
 
 
 NUMBER = r'[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?'
@@ -215,6 +220,116 @@ def plot(samples, plt, insertion_travel=()):
     return figure
 
 
+def figure_window(svg):
+    from matplotlib.backends.qt_compat import QtCore, QtGui, QtWidgets
+    QtSvg = import_module(f'{QtCore.__name__.split(".")[0]}.QtSvg')
+
+    class Canvas(QtWidgets.QWidget):
+        def __init__(self):
+            super().__init__()
+            self.renderer = QtSvg.QSvgRenderer(QtCore.QByteArray(svg), self)
+
+        def paintEvent(self, event):
+            painter = QtGui.QPainter(self)
+            try:
+                painter.fillRect(self.rect(), QtCore.Qt.GlobalColor.white)
+                self.renderer.render(painter)
+            finally:
+                painter.end()
+
+    class FigureWindow(QtWidgets.QScrollArea):
+        def __init__(self):
+            super().__init__()
+            self.setWindowTitle('Docking trace · Scroll to zoom, drag to pan, R to fit')
+            self.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+            self.canvas = Canvas()
+            self.base_size = self.canvas.renderer.defaultSize()
+            self.setWidget(self.canvas)
+            self.canvas.setCursor(QtCore.Qt.CursorShape.OpenHandCursor)
+            self.canvas.installEventFilter(self)
+            self.viewport().installEventFilter(self)
+            self.scale = 1.0
+            self.drag_position = None
+            self.drag_scroll = None
+            desktop = self.screen().availableGeometry()
+            self.resize(min(3 * self.base_size.width(), round(.95 * desktop.width())),
+                        min(3 * self.base_size.height(), round(.90 * desktop.height())))
+            QtCore.QTimer.singleShot(0, self.fit)
+
+        def set_scale(self, scale):
+            self.scale = scale
+            self.canvas.setFixedSize(max(1, round(self.base_size.width() * scale)),
+                                     max(1, round(self.base_size.height() * scale)))
+
+        def fit(self):
+            size = self.maximumViewportSize()
+            self.set_scale(max(.1, min((size.width() - 2) / self.base_size.width(),
+                                       (size.height() - 2) / self.base_size.height())))
+
+        def keyPressEvent(self, event):
+            if event.key() == QtCore.Qt.Key.Key_R:
+                self.fit()
+                return
+            super().keyPressEvent(event)
+
+        def eventFilter(self, watched, event):
+            kind = event.type()
+            types = QtCore.QEvent.Type
+            horizontal, vertical = self.horizontalScrollBar(), self.verticalScrollBar()
+            if kind == types.Wheel and event.angleDelta().y():
+                point = event.globalPosition().toPoint() if hasattr(event, 'globalPosition') else event.globalPos()
+                before = self.canvas.mapFromGlobal(point)
+                scale = min(12.0, max(.1, self.scale * 1.2 ** (event.angleDelta().y() / 120)))
+                ratio = scale / self.scale
+                self.set_scale(scale)
+                after = self.canvas.mapFromGlobal(point)
+                horizontal.setValue(horizontal.value() + round(before.x() * ratio - after.x()))
+                vertical.setValue(vertical.value() + round(before.y() * ratio - after.y()))
+                return True
+            if kind in (types.MouseButtonPress, types.MouseMove, types.MouseButtonRelease):
+                point = event.globalPosition().toPoint() if hasattr(event, 'globalPosition') else event.globalPos()
+                if kind == types.MouseButtonPress and event.button() == QtCore.Qt.MouseButton.LeftButton:
+                    self.setFocus()
+                    self.drag_position = point
+                    self.drag_scroll = (horizontal.value(), vertical.value())
+                    self.canvas.setCursor(QtCore.Qt.CursorShape.ClosedHandCursor)
+                    return True
+                if kind == types.MouseMove and self.drag_position is not None:
+                    delta = point - self.drag_position
+                    horizontal.setValue(self.drag_scroll[0] - delta.x())
+                    vertical.setValue(self.drag_scroll[1] - delta.y())
+                    return True
+                if kind == types.MouseButtonRelease and event.button() == QtCore.Qt.MouseButton.LeftButton:
+                    self.drag_position = None
+                    self.canvas.setCursor(QtCore.Qt.CursorShape.OpenHandCursor)
+                    return True
+            return super().eventFilter(watched, event)
+
+    return FigureWindow()
+
+
+def show_figure(figure):
+    from matplotlib.backends.qt_compat import QtCore, QtWidgets
+
+    svg = BytesIO()
+    figure.savefig(svg, format='svg')
+    app = QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
+    window = figure_window(svg.getvalue())
+    window.show()
+    window.setFocus()
+
+    # Let Python handle Ctrl+C while Qt's event loop is idle.
+    timer = QtCore.QTimer(window)
+    timer.timeout.connect(lambda: None)
+    timer.start(100)
+    previous = signal.signal(signal.SIGINT, lambda *_: app.exit(130))
+    try:
+        return app.exec() if hasattr(app, 'exec') else app.exec_()
+    finally:
+        signal.signal(signal.SIGINT, previous)
+        window.close()
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('log', type=Path, help='docking trace log')
@@ -236,8 +351,7 @@ def main():
 
     try:
         import matplotlib
-        if args.output:
-            matplotlib.use('Agg')
+        matplotlib.use('Agg')
         import matplotlib.pyplot as plt
     except ImportError:
         parser.error('Matplotlib is required (Ubuntu package: python3-matplotlib)')
@@ -249,11 +363,14 @@ def main():
         except (OSError, ValueError) as exc:
             parser.error(str(exc))
     else:
-        figure.set_size_inches(figure.get_size_inches() * 3)
         try:
-            plt.show()
+            status = show_figure(figure)
+        except ImportError:
+            parser.error('interactive display requires Qt with SVG support; use --output to export')
         finally:
             plt.close(figure)
+        if status:
+            raise SystemExit(status)
 
 
 if __name__ == '__main__':
