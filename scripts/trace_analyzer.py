@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """
-Plot a docking_server approach trace from a log file.
+Plot the approach, yaw alignment, and insertion from a docking trace.
 
-It opens a Matplotlib window with the robot’s path and dock estimates, distance to the dock and arrival threshold, and yaw error over time.
+The plot shows the robot path by phase, distance to the dock, and yaw error.
+When insertion status lines are present, it also plots forward travel and its cap.
 
      ~/robot_ws/src/dock_detector/scripts/trace_analyzer.py "/path/to/trace.log"
 
@@ -21,6 +22,7 @@ To prepare the log file, run the robot and copy the portion of the terminal outp
 
 import argparse
 from dataclasses import dataclass
+from itertools import groupby
 from pathlib import Path
 import re
 
@@ -31,7 +33,7 @@ POSE = re.compile(
     rf'\[({NUMBER})\]\s+\[docking_server\]:\s+'
     rf'DOCK: (approach|arrival) id=(\S+) frame=(\S+) .*?'
     rf'robot={POINT} detected={POINT} filtered={POINT} threshold_cm=({NUMBER})'
-    rf' threshold_yaw_deg=({NUMBER})'
+    rf' threshold_yaw_deg=({NUMBER})(?: phase=(\S+))?'
 )
 ERROR = re.compile(
     rf'\[docking_server\]:\s+xy_cm=({NUMBER}) yaw_deg=({NUMBER}) '
@@ -39,6 +41,17 @@ ERROR = re.compile(
     rf' dx_cm={NUMBER} dy_cm={NUMBER} '
     rf'filtered_yaw_deg=({NUMBER})'
 )
+
+INSERTION = re.compile(
+    rf'\[({NUMBER})\]\s+\[docking_alignment\]:\s+'
+    rf'ALIGN: insertion_(?:advance|wait_charge|charging) id=(\S+) .*?'
+    rf'travel_cm=({NUMBER}) max_travel_cm=({NUMBER})'
+)
+STAGES = {
+    'approach': ('Approach', '#1468a0'),
+    'alignment': ('Yaw alignment', '#7453a6'),
+    'insertion': ('Insertion', '#b34435'),
+}
 
 
 @dataclass
@@ -56,6 +69,7 @@ class Sample:
     filtered_distance: float
     filtered_yaw: float
     yaw_threshold: float
+    stage: str = 'approach'
 
 
 def read_samples(lines):
@@ -69,44 +83,96 @@ def read_samples(lines):
         error = ERROR.search(line)
         if pose is None or error is None:
             continue
-        time, phase, dock, frame, *coordinates, threshold, yaw_limit = pose.groups()
+        time, phase, dock, frame, *coordinates, threshold, yaw_limit, stage = pose.groups()
         rx, ry, dx, dy, fx, fy = map(float, coordinates)
         distance, yaw, filtered_distance, filtered_yaw = map(float, error.groups())
         samples.append(Sample(
             float(time), phase, dock, frame, (rx, ry), (dx, dy), (fx, fy),
-            float(threshold), distance, yaw, filtered_distance, filtered_yaw, float(yaw_limit),
+            float(threshold), distance, yaw, filtered_distance, filtered_yaw, float(yaw_limit), stage or 'approach',
         ))
         pose = None
+    # Older wrappers logged Nav2's position handoff as arrival with yaw disabled.
+    # Require the next pose to be from the same run's wrapper before relabeling it.
+    for index, (sample, following) in enumerate(zip(samples, samples[1:])):
+        if (sample.phase == 'arrival' and sample.stage == 'approach'
+                and sample.yaw_threshold == 180 and following.stage == 'alignment'
+                and (sample.dock, sample.frame) == (following.dock, following.frame)):
+            sample.phase = 'approach'
+            sample.stage = 'position_reached'
+            for approach in reversed(samples[:index + 1]):
+                if (approach.stage not in ('approach', 'position_reached')
+                        or approach.phase == 'arrival' or approach.yaw_threshold != 180):
+                    break
+                approach.yaw_threshold = following.yaw_threshold
     return samples
 
 
-def plot(samples, plt):
+def read_insertion_travel(lines, first):
+    travel = []
+    for line in lines:
+        match = INSERTION.search(line)
+        if match:
+            time, dock, distance, limit = match.groups()
+            if dock == first.dock and float(time) >= first.time:
+                travel.append((float(time) - first.time, float(distance), float(limit)))
+    return travel
+
+
+def plot(samples, plt, insertion_travel=()):
     first, last = samples[0], samples[-1]
     elapsed = [sample.time - first.time for sample in samples]
 
     figure = plt.figure(figsize=(10, 6), constrained_layout=True)
-    grid = figure.add_gridspec(2, 2, width_ratios=[1, 1.4])
+    rows = 3 if insertion_travel else 2
+    grid = figure.add_gridspec(rows, 2, width_ratios=[1, 1.4])
     path = figure.add_subplot(grid[:, 0])
     distance = figure.add_subplot(grid[0, 1])
     yaw = figure.add_subplot(grid[1, 1], sharex=distance)
-    figure.suptitle(f'Dock approach · {first.dock}', fontsize=17, fontweight='bold')
+    time_axes = [distance, yaw]
+    if insertion_travel:
+        travel = figure.add_subplot(grid[2, 1], sharex=distance)
+        time_axes.append(travel)
+    figure.suptitle(f'Docking trace · {first.dock}', fontsize=17, fontweight='bold')
 
     blue, orange, green, purple = '#1468a0', '#d77e29', '#00846f', '#7453a6'
-    for axes in (path, distance, yaw):
+    for axes in (path, *time_axes):
         axes.grid(alpha=0.22)
         axes.set_axisbelow(True)
         for side in ('top', 'right'):
             axes.spines[side].set_visible(False)
 
-    path.plot(*zip(*(sample.robot for sample in samples)), '.-',
-              color=blue, markersize=3, label='Robot path')
+    seen = set()
+    stage_at = [sample.stage if sample.stage in STAGES else 'approach' for sample in samples]
+    for stage, indices in groupby(range(len(samples)), key=stage_at.__getitem__):
+        indices = list(indices)
+        start, end = indices[0], indices[-1]
+        label, color = STAGES[stage]
+        points = samples[max(0, start - 1):end + 1]
+        path.plot(*zip(*(sample.robot for sample in points)), '.-',
+                  color=color, markersize=3, label=label if stage not in seen else None)
+        seen.add(stage)
+        end_time = elapsed[min(end + 1, len(elapsed) - 1)]
+        if stage == 'insertion' and insertion_travel:
+            end_time = max(end_time, insertion_travel[-1][0])
+        if stage != 'approach':
+            for axes in time_axes:
+                axes.axvspan(elapsed[start], end_time, color=color, alpha=0.10, linewidth=0)
+                axes.axvline(elapsed[start], color=color, alpha=0.55, linewidth=1)
+
+    handoff = next((elapsed[i] for i, sample in enumerate(samples)
+                    if sample.stage == 'position_reached'), None)
+    if handoff is not None:
+        for axes in time_axes:
+            axes.axvline(handoff, color=blue, alpha=0.65, linestyle=':', linewidth=1,
+                         label='Nav2 handoff' if axes is distance else None)
     path.plot(*zip(*(sample.detected for sample in samples)), '.',
               color=orange, markersize=3, label='Detected dock')
     path.plot(*zip(*(sample.filtered for sample in samples)), '.-',
               color=green, markersize=3, label='Filtered dock')
     end_label = 'Arrival' if last.phase == 'arrival' else 'Last sample'
     for sample, label, offset in [(first, 'Start', (-6, 7)), (last, end_label, (9, -10))]:
-        path.scatter(*sample.robot, color=blue, s=36, zorder=4)
+        color = STAGES[sample.stage if sample.stage in STAGES else 'approach'][1]
+        path.scatter(*sample.robot, color=color, s=36, zorder=4)
         path.annotate(label, sample.robot, xytext=offset, textcoords='offset points',
                       ha='right' if sample is first else 'left')
     path.set(xlabel=f'{first.frame} x (m)', ylabel=f'{first.frame} y (m)',
@@ -135,7 +201,17 @@ def plot(samples, plt):
     yaw.step(elapsed, [-limit for limit in limits], where='post',
              color='0.4', linestyle='--', linewidth=1)
     yaw.legend(fontsize=8)
-    yaw.set(xlabel='Elapsed time (s)', ylabel='Yaw error (°)', title='Logged yaw error')
+    yaw.set(ylabel='Yaw error (°)', title='Logged yaw error')
+    if insertion_travel:
+        times, travel_cm, caps = zip(*insertion_travel)
+        travel.plot(times, travel_cm, '.-', color=STAGES['insertion'][1], markersize=3,
+                    label='Forward travel')
+        travel.step(times, caps, where='post', color='0.4', linestyle='--', linewidth=1,
+                    label='Travel cap')
+        travel.set(ylabel='Travel (cm)', title='Insertion travel from odometry')
+        travel.legend(fontsize=8)
+        yaw.tick_params(labelbottom=False)
+    time_axes[-1].set_xlabel('Elapsed time (s)')
     return figure
 
 
@@ -147,8 +223,8 @@ def main():
     args = parser.parse_args()
 
     try:
-        with args.log.open(encoding='utf-8', errors='replace') as lines:
-            samples = read_samples(lines)
+        lines = args.log.read_text(encoding='utf-8', errors='replace').splitlines()
+        samples = read_samples(lines)
     except OSError as exc:
         parser.error(str(exc))
     if not samples:
@@ -166,7 +242,7 @@ def main():
     except ImportError:
         parser.error('Matplotlib is required (Ubuntu package: python3-matplotlib)')
 
-    figure = plot(samples, plt)
+    figure = plot(samples, plt, read_insertion_travel(lines, samples[0]))
     if args.output:
         try:
             figure.savefig(args.output, dpi=180)
