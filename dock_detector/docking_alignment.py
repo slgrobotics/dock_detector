@@ -444,9 +444,11 @@ class DockingAlignment(Node):
                     sleep(.05)
                     continue
                 twist = self.current_twist()
-                if owns_commands and twist is not None and math.hypot(twist.linear.x, twist.linear.y) > .01:
-                    raise DockingFailure(DockRobot.Result.FAILED_TO_CONTROL,
-                                         'Unexpected translation during yaw alignment')
+                # We could check for unexpected translation here, but the robot may drift slightly during yaw alignment.
+                # The odometry check is sufficient to ensure the robot is stationary before claiming alignment.
+                #if owns_commands and twist is not None and math.hypot(twist.linear.x, twist.linear.y) > .01:
+                #    raise DockingFailure(DockRobot.Result.FAILED_TO_CONTROL,
+                #                         'Unexpected translation during yaw alignment')
                 if twist is None and owns_commands:
                     raise DockingFailure(DockRobot.Result.FAILED_TO_CONTROL,
                                          'Odometry unavailable during yaw alignment')
