@@ -13,7 +13,7 @@ from action_msgs.msg import GoalStatus, GoalStatusArray
 from geometry_msgs.msg import TwistStamped
 from lifecycle_msgs.msg import State
 from lifecycle_msgs.srv import GetState
-from nav2_msgs.action import DockRobot
+from nav2_msgs.action import DockRobot, NavigateToPose
 from nav_msgs.msg import Odometry
 from rclpy.action import ActionClient, ActionServer, CancelResponse, GoalResponse
 from rclpy.callback_groups import ReentrantCallbackGroup
@@ -21,6 +21,7 @@ from rclpy.executors import ExternalShutdownException, MultiThreadedExecutor
 from rclpy.logging import get_logger
 from rclpy.node import Node
 from rclpy.parameter import Parameter
+from rclpy.parameter_client import AsyncParameterClient
 from rclpy.qos import qos_profile_action_status_default, qos_profile_sensor_data
 from rclpy.time import Time
 from sensor_msgs.msg import BatteryState
@@ -82,6 +83,7 @@ class DockingAlignment(Node):
             'angular_speed': .05, 'alignment_timeout': 12.0,
             'external_detection_timeout': .5, 'selection_timeout': 3.0,
             'trace_enabled': False,
+            'restaging_goal_checker': '', 'max_restaging_retries': 2,
             'nav2_timeout': 1500.0, 'odom_topic': 'odometry/local',
             'selection_service': 'dock_detector/select_dock',
             'detection_topic': 'dock_detector/detection',
@@ -98,6 +100,8 @@ class DockingAlignment(Node):
                 value = self.settings[name]
                 if not math.isfinite(value) or value <= 0:
                     raise ValueError(f'{name} must be finite and positive')
+        if self.settings['max_restaging_retries'] < 0:
+            raise ValueError('max_restaging_retries must be nonnegative')
         self.alignment_position_limit = (
             self.settings['docking_threshold'] + self.settings['alignment_position_margin']
         )
@@ -157,6 +161,10 @@ class DockingAlignment(Node):
                 qos_profile_action_status_default,
             )
         self.nav2 = ActionClient(self, DockRobot, 'dock_robot_position', callback_group=callbacks)
+        self.controller_parameters = AsyncParameterClient(
+            self, 'controller_server', callback_group=callbacks)
+        self.navigator = ActionClient(self, NavigateToPose, 'navigate_to_pose',
+                                      callback_group=callbacks)
         self.server = ActionServer(
             self, DockRobot, 'dock_robot', self.execute, goal_callback=self.accept,
             cancel_callback=lambda _: CancelResponse.ACCEPT, callback_group=callbacks,
@@ -232,7 +240,7 @@ class DockingAlignment(Node):
             raise TimeoutError('ROS request timed out')
         return future.result()
 
-    def forward(self, goal, trace):
+    def forward(self, goal, trace, *, already_staged=False):
         self.check_cancel(goal)
         trace.report('nav2_position', 'requesting position-only docking')
         states = {
@@ -249,7 +257,18 @@ class DockingAlignment(Node):
             trace.report(f'nav2_{phase}', f'retries={status.num_retries}')
             goal.publish_feedback(status)
 
-        future = self.nav2.send_goal_async(goal.request, feedback_callback=feedback)
+        request = goal.request
+        if already_staged:
+            request = DockRobot.Goal(
+                use_dock_id=True, dock_id=goal.request.dock_id,
+                navigate_to_staging_pose=False, max_staging_time=goal.request.max_staging_time,
+            )
+        return self.run_inner_action(goal, trace, self.nav2, request,
+                                     self.settings['nav2_timeout'], feedback)
+
+    def run_inner_action(self, goal, trace, client, request, timeout, feedback=None):
+        self.check_cancel(goal)
+        future = client.send_goal_async(request, feedback_callback=feedback)
         try:
             inner = self.wait_for(future, 3.0)
         except Exception:
@@ -260,10 +279,10 @@ class DockingAlignment(Node):
             future.add_done_callback(self.cancel_late_goal)
             raise
         if not inner.accepted:
-            raise DockingFailure(DockRobot.Result.GOAL_REJECTED, 'Nav2 rejected position docking')
+            raise DockingFailure(DockRobot.Result.GOAL_REJECTED, 'Nav2 rejected the inner docking or staging goal')
         result = inner.get_result_async()
         try:
-            return self.wait_for(result, self.settings['nav2_timeout'], goal)
+            return self.wait_for(result, timeout, goal)
         except (DockingFailure, TimeoutError):
             trace.report('nav2_cancel', 'requesting Nav2 stop')
             try:
@@ -274,6 +293,92 @@ class DockingAlignment(Node):
                     self.nav2_uncertain = True
                 self.get_logger().error('Could not confirm Nav2 stopped. Restart after checking Nav2.')
             raise
+
+    def restage(self, goal, trace, correction):
+        try:
+            frame, *coordinates = correction.split()
+            x, y, yaw = map(float, coordinates)
+            if frame != self.settings['fixed_frame'] or not all(
+                    math.isfinite(value) for value in (x, y, yaw)):
+                raise ValueError('invalid frame or coordinates')
+        except ValueError as exc:
+            raise DockingFailure(DockRobot.Result.FAILED_TO_STAGE,
+                                 'Invalid LiDAR staging correction') from exc
+
+        deadline = monotonic() + 5.0
+        still_since = None
+        while monotonic() < deadline:
+            self.check_cancel(goal)
+            twist = self.current_twist()
+            stopped = (self.ensure_idle() and twist is not None
+                       and math.hypot(twist.linear.x, twist.linear.y) <= .005
+                       and abs(twist.angular.z) <= .01)
+            now = monotonic()
+            still_since = (still_since or now) if stopped else None
+            if still_since is not None and now - still_since >= .3:
+                break
+            sleep(.05)
+        else:
+            raise DockingFailure(DockRobot.Result.FAILED_TO_CONTROL,
+                                 'Robot did not stop before LiDAR re-staging')
+
+        self.check_pipeline(goal)
+        if not self.navigator.server_is_ready():
+            raise DockingFailure(DockRobot.Result.FAILED_TO_STAGE, 'Nav2 navigation unavailable')
+        request = NavigateToPose.Goal()
+        request.pose.header.frame_id = frame
+        request.pose.header.stamp = self.get_clock().now().to_msg()
+        request.pose.pose.position.x, request.pose.pose.position.y = x, y
+        request.pose.pose.orientation.z = math.sin(yaw / 2.0)
+        request.pose.pose.orientation.w = math.cos(yaw / 2.0)
+        trace.report('restage', f'frame={frame} x={x:.3f} y={y:.3f} yaw_deg={math.degrees(yaw):+.2f}')
+        timeout = goal.request.max_staging_time
+        if not math.isfinite(timeout) or timeout <= 0.0:
+            raise DockingFailure(DockRobot.Result.FAILED_TO_STAGE, 'Invalid re-staging time limit')
+        # Scope tighter tolerances to the correction goal. Seggy uses one goal
+        # checker, which also serves callers that omit a goal checker ID.
+        checker = self.settings['restaging_goal_checker']
+        tolerances = {
+            'xy_goal_tolerance': .025, 'yaw_goal_tolerance': .05,
+            'stateful': False,
+        }
+        parameters = [Parameter(f'{checker}.{key}', value=value)
+                      for key, value in tolerances.items()]
+        if not self.controller_parameters.services_are_ready():
+            raise DockingFailure(DockRobot.Result.FAILED_TO_STAGE,
+                                 'Controller parameter services unavailable for re-staging')
+        saved = self.wait_for(self.controller_parameters.get_parameters(
+            [param.name for param in parameters]), 3.0, goal).values
+        if len(saved) != len(parameters) or any(
+                value.type != param.type_.value for param, value in zip(parameters, saved)):
+            raise DockingFailure(DockRobot.Result.FAILED_TO_STAGE,
+                                 'Could not read the active staging goal checker settings')
+        original = [
+            Parameter(param.name, value=(value.bool_value
+                      if param.type_ == Parameter.Type.BOOL else value.double_value))
+            for param, value in zip(parameters, saved)
+        ]
+        try:
+            applied = self.wait_for(
+                self.controller_parameters.set_parameters_atomically(parameters), 3.0).result
+            if not applied.successful:
+                raise DockingFailure(DockRobot.Result.FAILED_TO_STAGE,
+                                     'Could not set precise re-staging tolerances: ' + applied.reason)
+            response = self.run_inner_action(goal, trace, self.navigator, request, timeout)
+        finally:
+            try:
+                restored = self.wait_for(
+                    self.controller_parameters.set_parameters_atomically(original), 3.0).result
+                if not restored.successful:
+                    raise RuntimeError(restored.reason)
+            except Exception as exc:
+                with self.lock:
+                    self.nav2_uncertain = True
+                raise DockingFailure(DockRobot.Result.FAILED_TO_CONTROL,
+                                     'Could not restore navigation goal tolerances') from exc
+        if response.status != GoalStatus.STATUS_SUCCEEDED or response.result.error_code:
+            raise DockingFailure(DockRobot.Result.FAILED_TO_STAGE,
+                                 'LiDAR re-staging failed: ' + response.result.error_msg)
 
     def cancel_late_goal(self, future):
         try:
@@ -630,9 +735,22 @@ class DockingAlignment(Node):
         trace = AlignmentTrace(self.get_logger(), goal.request.dock_id)
         try:
             started = self.get_clock().now()
-            response = self.forward(goal, trace)
-            self.check_cancel(goal)
-            result = response.result
+            retries = 0
+            while True:
+                response = self.forward(goal, trace, already_staged=retries > 0)
+                self.check_cancel(goal)
+                result = response.result
+                prefix = 'LiDAR staging rejected: '
+                if (response.status != GoalStatus.STATUS_ABORTED
+                        or result.error_code != DockRobot.Result.FAILED_TO_STAGE
+                        or not result.error_msg.startswith(prefix)
+                        or not goal.request.navigate_to_staging_pose
+                        or not self.settings['restaging_goal_checker']
+                        or retries >= self.settings['max_restaging_retries']):
+                    break
+                retries += 1
+                self.restage(goal, trace, result.error_msg[len(prefix):])
+            result.num_retries = min(65535, result.num_retries + retries)
             if response.status != GoalStatus.STATUS_SUCCEEDED or not result.success:
                 result.success = False
                 goal.abort()
