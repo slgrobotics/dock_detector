@@ -83,6 +83,7 @@ class DockingAlignment(Node):
             'docking_threshold': .025, 'docking_threshold_yaw': 5.0,
             'alignment_position_margin': 0.02,
             'max_insertion_travel': 0.0, 'insertion_speed': .01,
+            'insertion_stop_margin': .001,
             'insertion_timeout': 15.0, 'battery_topic': 'battery/battery_state',
             'angular_speed': .05, 'alignment_timeout': 12.0,
             'external_detection_timeout': .5, 'selection_timeout': 3.0,
@@ -96,7 +97,7 @@ class DockingAlignment(Node):
             name: self.declare_parameter(name, value).value for name, value in defaults.items()
         }
         for name, default in defaults.items():
-            if name in ('alignment_position_margin', 'max_insertion_travel'):
+            if name in ('alignment_position_margin', 'max_insertion_travel', 'insertion_stop_margin'):
                 value = self.settings[name]
                 if not math.isfinite(value) or value < 0:
                     raise ValueError(f'{name} must be finite and nonnegative')
@@ -706,8 +707,8 @@ class DockingAlignment(Node):
                                          'Fresh battery charging status unavailable')
                 charging = battery == BatteryState.POWER_SUPPLY_STATUS_CHARGING
                 remaining = limit - travel
-                # Allow for the 6 Hz smoother and a control cycle before the stop takes effect.
-                braking_room = .001 + .25 * max(0.0, twist.linear.x)
+                # Reserve room for both hardware coasting and pipeline latency.
+                braking_room = self.settings['insertion_stop_margin'] + .25 * max(0.0, twist.linear.x)
                 if charging:
                     stop_reason = 'charging'
                 elif remaining <= braking_room and stop_reason is None:
@@ -723,7 +724,8 @@ class DockingAlignment(Node):
                     self.trace_sample(dock, sample, 'approach', stage='insertion')
                     next_sample = now + .5
                 status = (f'travel_cm={100 * forward:.2f} max_travel_cm={100 * limit:.2f} '
-                          f'cmd_linear_mps={speed:.3f} battery_status={battery}')
+                          f'cmd_linear_mps={speed:.3f} odom_linear_mps={twist.linear.x:+.3f} '
+                          f'braking_room_cm={100 * braking_room:.2f} battery_status={battery}')
                 if stop_reason:
                     trace.report('insertion_wait_charge', f'reason={stop_reason} {status}')
                     still = (math.hypot(twist.linear.x, twist.linear.y) <= .005
