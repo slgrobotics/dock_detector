@@ -89,6 +89,7 @@ class DockingAlignment(Node):
             'external_detection_timeout': .5, 'selection_timeout': 3.0,
             'trace_enabled': False,
             'restaging_goal_checker': '', 'max_restaging_retries': 2,
+            'restaging_xy_goal_tolerance': .025, 'restaging_yaw_goal_tolerance': .05,
             'nav2_timeout': 1500.0, 'odom_topic': 'odometry/local',
             'selection_service': 'dock_detector/select_dock',
             'detection_topic': 'dock_detector/detection',
@@ -350,7 +351,8 @@ class DockingAlignment(Node):
         # checker, which also serves callers that omit a goal checker ID.
         checker = self.settings['restaging_goal_checker']
         tolerances = {
-            'xy_goal_tolerance': .025, 'yaw_goal_tolerance': .05,
+            'xy_goal_tolerance': self.settings['restaging_xy_goal_tolerance'],
+            'yaw_goal_tolerance': self.settings['restaging_yaw_goal_tolerance'],
             'stateful': False,
         }
         parameters = [Parameter(f'{checker}.{key}', value=value)
