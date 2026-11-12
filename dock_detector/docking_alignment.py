@@ -71,6 +71,10 @@ class DockingFailure(Exception):
         self.code = code
 
 
+class StoppedActionTimeout(TimeoutError):
+    """The action exceeded its deadline and its terminal result was received."""
+
+
 class DockingAlignment(Node):
     def __init__(self):
         super().__init__('docking_alignment')
@@ -283,15 +287,21 @@ class DockingAlignment(Node):
         result = inner.get_result_async()
         try:
             return self.wait_for(result, timeout, goal)
-        except (DockingFailure, TimeoutError):
+        except (DockingFailure, TimeoutError) as error:
             trace.report('nav2_cancel', 'requesting Nav2 stop')
             try:
                 inner.cancel_goal_async()
-                self.wait_for(result, 3.0)
+                terminal = self.wait_for(result, 3.0)
+                if terminal.status not in (GoalStatus.STATUS_SUCCEEDED, GoalStatus.STATUS_ABORTED,
+                                           GoalStatus.STATUS_CANCELED):
+                    raise RuntimeError('Nav2 did not return a terminal status')
             except Exception:
                 with self.lock:
                     self.nav2_uncertain = True
                 self.get_logger().error('Could not confirm Nav2 stopped. Restart after checking Nav2.')
+            else:
+                if isinstance(error, TimeoutError):
+                    raise StoppedActionTimeout(f'Nav2 action exceeded {timeout:.1f} s') from error
             raise
 
     def restage(self, goal, trace, correction):
@@ -364,7 +374,17 @@ class DockingAlignment(Node):
             if not applied.successful:
                 raise DockingFailure(DockRobot.Result.FAILED_TO_STAGE,
                                      'Could not set precise re-staging tolerances: ' + applied.reason)
-            response = self.run_inner_action(goal, trace, self.navigator, request, timeout)
+            def feedback(message):
+                progress = message.feedback
+                trace.report('restage_progress',
+                             f'distance_remaining_m={progress.distance_remaining:.3f} '
+                             f'recoveries={progress.number_of_recoveries}')
+
+            response = self.run_inner_action(goal, trace, self.navigator, request, timeout, feedback)
+        except StoppedActionTimeout as exc:
+            self.check_cancel(goal)
+            raise DockingFailure(DockRobot.Result.FAILED_TO_STAGE,
+                                 f'LiDAR re-staging timed out after {timeout:.1f} s; Nav2 stopped') from exc
         finally:
             try:
                 restored = self.wait_for(
@@ -773,6 +793,9 @@ class DockingAlignment(Node):
                 DockRobot.Result.UNKNOWN
             )
             result.error_msg = str(exc)
+            with self.lock:
+                if self.nav2_uncertain:
+                    result.error_msg = 'Nav2 state unconfirmed: ' + result.error_msg
             if goal.is_cancel_requested:
                 goal.canceled()
             elif self.context.ok():
