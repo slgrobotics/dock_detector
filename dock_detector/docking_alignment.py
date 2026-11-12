@@ -89,7 +89,7 @@ class DockingAlignment(Node):
             'external_detection_timeout': .5, 'selection_timeout': 3.0,
             'trace_enabled': False,
             'restaging_goal_checker': '', 'max_restaging_retries': 2,
-            'restaging_xy_goal_tolerance': .025, 'restaging_yaw_goal_tolerance': .05,
+            'restaging_xy_goal_tolerance': .025, 'restaging_yaw_goal_tolerance': math.degrees(.05),
             'nav2_timeout': 1500.0, 'odom_topic': 'odometry/local',
             'selection_service': 'dock_detector/select_dock',
             'detection_topic': 'dock_detector/detection',
@@ -106,6 +106,8 @@ class DockingAlignment(Node):
                 value = self.settings[name]
                 if not math.isfinite(value) or value <= 0:
                     raise ValueError(f'{name} must be finite and positive')
+        if self.settings['restaging_yaw_goal_tolerance'] > 180:
+            raise ValueError('restaging_yaw_goal_tolerance must be at most 180 degrees')
         if self.settings['max_restaging_retries'] < 0:
             raise ValueError('max_restaging_retries must be nonnegative')
         self.alignment_position_limit = (
@@ -352,7 +354,7 @@ class DockingAlignment(Node):
         checker = self.settings['restaging_goal_checker']
         tolerances = {
             'xy_goal_tolerance': self.settings['restaging_xy_goal_tolerance'],
-            'yaw_goal_tolerance': self.settings['restaging_yaw_goal_tolerance'],
+            'yaw_goal_tolerance': math.radians(self.settings['restaging_yaw_goal_tolerance']),
             'stateful': False,
         }
         parameters = [Parameter(f'{checker}.{key}', value=value)
