@@ -24,9 +24,9 @@ def test_catalogue_generates_nav2_poses_without_mutating_original():
     params=merge_nav2(base,c)['docking_server']['ros__parameters']
     assert 'dock_backwards' not in params
     assert base['docking_server']['ros__parameters']['dock_backwards'] is False
-    assert params['trapezoid_bay']['pose']==[-1.,3.,math.pi]
-    assert params['v_bay']['pose']==[0.,6.,math.pi/2]
-    assert params['trapezoid_bay']['id']=='trapezoid_bay'
-    assert params['v_bay']['id']=='v_bay'
+    assert params['sim_trapezoid_bay']['pose']==[-1.,3.,math.pi]
+    assert params['sim_v_bay']['pose']==[0.,6.,math.pi/2]
+    assert params['sim_trapezoid_bay']['id']=='sim_trapezoid_bay'
+    assert params['sim_v_bay']['id']=='sim_v_bay'
     assert params['lidar_dock']['plugin']=='dock_detector_nav2::LidarDock'
     assert params['controller']['use_collision_detection']

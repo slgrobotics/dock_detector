@@ -2,7 +2,7 @@
 dock_detector:
   ros__parameters:
     use_sim_time: true
-    target_shape: trapezoid
+    target_shape: trapezoid_bay
     scan_topic: scan
     pose_topic: detected_dock_pose
     fixed_frame: odom
@@ -20,7 +20,7 @@ dock_detector:
     expected_dock_yaw_deg: 180.0
     angle_tolerance_deg: 11.459155902616466
     yaw_tolerance_deg: 25.783100780887047
-    trapezoid:
+    trapezoid_bay:
       panel_width: 0.5
       flare_angle_deg: 32.5
       parking_offset: 0.425
@@ -28,22 +28,22 @@ dock_detector:
       dimension_tolerance: 0.05
       max_corner_gap: 0.1
       joint_refinement: true
-    v:
+    v_shaped_bay:
       panel_width: 0.7
       flare_angle_deg: 55.0
       parking_offset: 0.6
       max_apex_gap: 0.25
       joint_refinement: true
     dock_ids:
-    - trapezoid_bay
-    - v_bay
+    - sim_trapezoid_bay
+    - sim_v_bay
     docks:
-      trapezoid_bay:
-        target_shape: trapezoid
+      sim_trapezoid_bay:
+        target_shape: trapezoid_bay
         expected_dock_x: -1.0
         expected_dock_y: 3.0
         expected_dock_yaw_deg: 180.0
-        trapezoid:
+        trapezoid_bay:
           panel_width: 0.5
           flare_angle_deg: 32.5
           parking_offset: 0.425
@@ -51,12 +51,12 @@ dock_detector:
           dimension_tolerance: 0.05
           max_corner_gap: 0.1
           joint_refinement: true
-      v_bay:
-        target_shape: v
+      sim_v_bay:
+        target_shape: v_shaped_bay
         expected_dock_x: 0.0
         expected_dock_y: 6.0
         expected_dock_yaw_deg: 90.0
-        v:
+        v_shaped_bay:
           joint_refinement: true
           panel_width: 0.7
           flare_angle_deg: 55.0

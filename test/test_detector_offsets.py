@@ -15,7 +15,7 @@ from dock_detector.core.geometry import Detection
 from dock_detector.dock_detector_node import DockDetector
 
 
-@pytest.mark.parametrize('shape,distance', [('v',.6),('trapezoid',.425)])
+@pytest.mark.parametrize('shape,distance', [('v_shaped_bay',.6),('trapezoid_bay',.425)])
 def test_scalar_offset_applies_in_landmark_direction_for_both_shapes(shape,distance):
     cfg=load_parameters((Path(__file__).resolve().parents[1]/'config/seggy_t.yaml').read_text())
     cfg.update(target_shape=shape,expected_dock_x=1.,expected_dock_y=2.,expected_dock_yaw=math.pi)
@@ -37,7 +37,7 @@ def test_scalar_offset_applies_in_landmark_direction_for_both_shapes(shape,dista
         pub=SimpleNamespace(publish=poses.append),status=SimpleNamespace(publish=statuses.append),
         markers=SimpleNamespace(publish=markers.append))
     detected=Detection(np.array([4.,5.]),.7,(),.001)
-    matcher='dock_detector.dock_detector_node.detect_v' if shape=='v' else 'dock_detector.dock_detector_node.detect_trapezoid'
+    matcher='dock_detector.dock_detector_node.detect_v' if shape=='v_shaped_bay' else 'dock_detector.dock_detector_node.detect_trapezoid'
     with patch(matcher,return_value=detected) as match:
         DockDetector.process(node)
     # Map (1,2) rotated +90 degrees then translated (10,20) = odom (8,21).
@@ -54,7 +54,7 @@ def test_scalar_offset_applies_in_landmark_direction_for_both_shapes(shape,dista
     assert pose.header.stamp.sec==10 and pose.header.frame_id==cfg['fixed_frame']
 
 
-@pytest.mark.parametrize('name', ['v.parking_offset','trapezoid.parking_offset'])
+@pytest.mark.parametrize('name', ['v_shaped_bay.parking_offset','trapezoid_bay.parking_offset'])
 @pytest.mark.parametrize('value', [-.1,float('nan'),float('inf')])
 def test_invalid_scalar_offsets_fail_before_ros_graph_creation(name,value):
     def parameter(key,default):return SimpleNamespace(value=value if key==name else default)

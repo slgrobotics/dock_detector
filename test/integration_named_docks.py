@@ -32,13 +32,13 @@ def test_named_detector_selection_and_identified_measurement():
     try:
         assert client.wait_for_service(timeout_sec=2.)
         assert not detector.selection.dock_id
-        assert select('trapezoid_bay','one').success
-        assert detector.cfg['target_shape']=='trapezoid'
+        assert select('sim_trapezoid_bay','one').success
+        assert detector.cfg['target_shape']=='trapezoid_bay'
         detector.pending=LaserScan()
-        assert select('v_bay','two').success
+        assert select('sim_v_bay','two').success
         assert detector.pending is None and detector.last_detection is None
-        assert detector.cfg['target_shape']=='v'
-        assert not select('trapezoid_bay','one',False).success
+        assert detector.cfg['target_shape']=='v_shaped_bay'
+        assert not select('sim_trapezoid_bay','one',False).success
         assert not select('unknown','bad').success
         assert detector.selection.acquisition_id=='two'
         tf=TransformStamped();tf.transform.rotation.w=1.
@@ -50,14 +50,14 @@ def test_named_detector_selection_and_identified_measurement():
             detector.on_scan(scan)
         spin()
         assert len(observations)==1
-        assert observations[0].dock_id=='v_bay' and observations[0].acquisition_id=='two'
+        assert observations[0].dock_id=='sim_v_bay' and observations[0].acquisition_id=='two'
         assert observations[0].pose.header.stamp==scan.header.stamp
         assert abs(observations[0].pose.pose.position.y-6.)<1e-8
-        assert select('v_bay','three').success
+        assert select('sim_v_bay','three').success
         # Queued old scan cannot acquire the new session.
         detector.on_scan(scan);spin()
         assert len(observations)==1
-        assert select('v_bay','three',False).success
+        assert select('sim_v_bay','three',False).success
         detector.on_scan(scan);spin();assert len(observations)==1
     finally:
         executor.remove_node(detector);executor.remove_node(peer)
@@ -70,7 +70,7 @@ def test_legacy_single_profile_remains_available():
     detector=DockDetector()
     try:
         assert not detector.catalogue_mode
-        assert detector.cfg['target_shape']=='trapezoid'
+        assert detector.cfg['target_shape']=='trapezoid_bay'
         response=detector.select_dock(SelectDock.Request(activate=True,dock_id='any',acquisition_id='test'),SelectDock.Response())
         assert not response.success
     finally:

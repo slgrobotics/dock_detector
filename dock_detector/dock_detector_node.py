@@ -31,7 +31,7 @@ def transform_points(xy, tf):
 class DockDetector(Node):
     def __init__(self):
         super().__init__('dock_detector')
-        defaults = dict(target_shape='trapezoid', scan_topic='scan',
+        defaults = dict(target_shape='trapezoid_bay', scan_topic='scan',
                         pose_topic='detected_dock_pose', fixed_frame='odom', expected_frame='map',
                         expected_dock_x=-1.0, expected_dock_y=3.0, expected_dock_yaw_deg=180.,
                         search_radius=.85, max_scan_age=.5, detection_timeout=.6,
@@ -54,8 +54,8 @@ class DockDetector(Node):
             raise ValueError('expected_angle must be between zero and pi')
         if not 0 < self.cfg['trapezoid_flare_angle'] < math.pi/2:
             raise ValueError('trapezoid_flare_angle must be between zero and pi/2')
-        if self.cfg['target_shape'] not in ('v', 'trapezoid'):
-            raise ValueError('target_shape must be v or trapezoid')
+        if self.cfg['target_shape'] not in ('v_shaped_bay', 'trapezoid_bay'):
+            raise ValueError('target_shape must be v_shaped_bay or trapezoid_bay')
         ids = self.declare_parameter('dock_ids', rclpy.Parameter.Type.STRING_ARRAY).value or []
         if len(ids) != len(set(ids)) or any(not i or '.' in i or '/' in i for i in ids):
             raise ValueError('dock_ids must be unique nonempty parameter-safe names')
@@ -69,8 +69,8 @@ class DockDetector(Node):
                 else:
                     raw[key] = self.cfg[key] if key in self.cfg else self.get_parameter(key).value
             candidate = geometry_parameters(raw)
-            if candidate['target_shape'] not in ('v', 'trapezoid'):
-                raise ValueError(f'{dock_id}: target_shape must be v or trapezoid')
+            if candidate['target_shape'] not in ('v_shaped_bay', 'trapezoid_bay'):
+                raise ValueError(f'{dock_id}: target_shape must be v_shaped_bay or trapezoid_bay')
             if not all(math.isfinite(candidate[k]) for k in ('expected_dock_x', 'expected_dock_y', 'expected_dock_yaw')):
                 raise ValueError(f'{dock_id}: prior must be finite')
             docks[dock_id] = candidate
@@ -208,7 +208,7 @@ class DockDetector(Node):
         rot = rotation(prior_tf.transform.rotation)
         # Public priors use Nav2 inward heading; fitting uses the opening axis.
         expected_yaw = c['expected_dock_yaw']+math.atan2(rot[1, 0], rot[0, 0])-math.pi
-        offset = c['v_offset'] if c['target_shape'] == 'v' else c['trapezoid_offset']
+        offset = c['v_offset'] if c['target_shape'] == 'v_shaped_bay' else c['trapezoid_offset']
         expected_apex = prior-offset*np.array([math.cos(expected_yaw), math.sin(expected_yaw)])
         points = points[np.linalg.norm(points-expected_apex, axis=1) <= c['search_radius']]
         keys = ('distance_threshold', 'min_points', 'min_length', 'max_length',
@@ -216,7 +216,7 @@ class DockDetector(Node):
         kwargs = {k: c[k] for k in keys}
         metrics = {}
         fit_started = time.monotonic()
-        if c['target_shape'] == 'trapezoid':
+        if c['target_shape'] == 'trapezoid_bay':
             detection = detect_trapezoid(
                 points, expected_apex, expected_yaw, **kwargs,
                 width=c['trapezoid_width'], depth=c['trapezoid_depth'],
@@ -226,7 +226,7 @@ class DockDetector(Node):
         else:
             detection = detect_v(points, expected_apex, expected_yaw, **kwargs,
                                  expected_angle=c['expected_angle'], max_apex_gap=c['max_apex_gap'],
-                                 panel_width=c['v.panel_width'], joint_refinement=c['v.joint_refinement'],
+                                 panel_width=c['v_shaped_bay.panel_width'], joint_refinement=c['v_shaped_bay.joint_refinement'],
                                  diagnostics=metrics)
             if detection is not None:
                 metrics['fit_rms_m'] = detection.rms

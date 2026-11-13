@@ -11,5 +11,5 @@ def test_rectangle_mode_is_rejected():
         return SimpleNamespace(value='rectangle' if name=='target_shape' else default)
     with patch.object(Node,'__init__',return_value=None), \
          patch.object(DockDetector,'declare_parameter',side_effect=parameter):
-        with pytest.raises(ValueError,match='target_shape must be v or trapezoid'):
+        with pytest.raises(ValueError,match='target_shape must be v_shaped_bay or trapezoid_bay'):
             DockDetector()

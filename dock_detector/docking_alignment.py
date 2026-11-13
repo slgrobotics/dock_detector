@@ -82,7 +82,7 @@ class DockingAlignment(Node):
             'fixed_frame': 'odom', 'base_frame': 'base_link', 'dock_direction': 'forward',
             'docking_threshold': .025, 'docking_threshold_yaw': 5.0,
             'alignment_position_margin': 0.02,
-            'max_insertion_travel': 0.0, 'insertion_speed': .01,
+            'insertion_max_travel': 0.0, 'insertion_speed': .01,
             'insertion_stop_margin': .001,
             'insertion_timeout': 15.0, 'battery_topic': 'battery/battery_state',
             'angular_speed': .05, 'alignment_timeout': 12.0,
@@ -98,7 +98,7 @@ class DockingAlignment(Node):
             name: self.declare_parameter(name, value).value for name, value in defaults.items()
         }
         for name, default in defaults.items():
-            if name in ('alignment_position_margin', 'max_insertion_travel', 'insertion_stop_margin'):
+            if name in ('alignment_position_margin', 'insertion_max_travel', 'insertion_stop_margin'):
                 value = self.settings[name]
                 if not math.isfinite(value) or value < 0:
                     raise ValueError(f'{name} must be finite and nonnegative')
@@ -123,13 +123,13 @@ class DockingAlignment(Node):
         dock_ids = self.declare_parameter('dock_ids', Parameter.Type.STRING_ARRAY).value or []
         self.insertion_travel = {
             dock: self.declare_parameter(
-                f'docks.{dock}.max_insertion_travel', self.settings['max_insertion_travel']
+                f'docks.{dock}.insertion_max_travel', self.settings['insertion_max_travel']
             ).value for dock in dock_ids
         }
         if any(not math.isfinite(value) or value < 0 for value in self.insertion_travel.values()):
-            raise ValueError('Per-dock max_insertion_travel must be finite and nonnegative')
+            raise ValueError('Per-dock insertion_max_travel must be finite and nonnegative')
         if (self.settings['dock_direction'] != 'forward'
-                and (self.settings['max_insertion_travel'] > 0
+                and (self.settings['insertion_max_travel'] > 0
                      or any(self.insertion_travel.values()))):
             raise ValueError('Forward insertion requires dock_direction=forward')
 
@@ -157,7 +157,7 @@ class DockingAlignment(Node):
                                  self.receive_detection, 10)
         self.create_subscription(Odometry, self.settings['odom_topic'],
                                  self.receive_odom, qos_profile_sensor_data)
-        if self.settings['max_insertion_travel'] or any(self.insertion_travel.values()):
+        if self.settings['insertion_max_travel'] or any(self.insertion_travel.values()):
             self.create_subscription(BatteryState, self.settings['battery_topic'],
                                      self.receive_battery, qos_profile_sensor_data)
         for name in ('dock_robot_position', 'undock_robot', 'navigate_to_pose',
@@ -784,7 +784,7 @@ class DockingAlignment(Node):
             result.success = False
             sample = self.align(goal, started, result, trace)
             dock = goal.request.dock_id
-            limit = self.insertion_travel.get(dock, self.settings['max_insertion_travel'])
+            limit = self.insertion_travel.get(dock, self.settings['insertion_max_travel'])
             if limit > 0:
                 sample = self.insert(goal, started, result, trace, sample, limit)
             self.check_cancel(goal)

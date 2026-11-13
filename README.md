@@ -47,7 +47,7 @@ itself does not drive the robot.
 
 Standalone, perception-only ROS 2 node for detecting a known trapezoidal bay
 or a two-arm V landmark using LiDAR `scan` messages. Supported `target_shape`
-values are `trapezoid` and `v`. The rectangular bay option has been removed.
+values are `trapezoid_bay` and `v_shaped_bay`. The rectangular bay option has been removed.
 
 Assists Nav2 Docking by publishing a `geometry_msgs/msg/PoseStamped` parking pose.
 
@@ -131,11 +131,11 @@ You should be able to drive the simulated robot with the joystick and set Nav2 g
 
 Command docking and undocking:
 ```
-# v_bay:
-ros2 action send_goal /dock_robot nav2_msgs/action/DockRobot "{use_dock_id: true, dock_id: v_bay, navigate_to_staging_pose: true}" --feedback
+# sim_v_bay:
+ros2 action send_goal /dock_robot nav2_msgs/action/DockRobot "{use_dock_id: true, dock_id: sim_v_bay, navigate_to_staging_pose: true}" --feedback
 
-# trapezoid_bay:
-ros2 action send_goal /dock_robot nav2_msgs/action/DockRobot "{use_dock_id: true, dock_id: trapezoid_bay, navigate_to_staging_pose: true}" --feedback
+# sim_trapezoid_bay:
+ros2 action send_goal /dock_robot nav2_msgs/action/DockRobot "{use_dock_id: true, dock_id: sim_trapezoid_bay, navigate_to_staging_pose: true}" --feedback
 
 # undock from either bay:
 ros2 action send_goal /undock_robot nav2_msgs/action/UndockRobot "{dock_type: lidar_dock, max_undocking_time: 60.0}" --feedback
@@ -172,16 +172,16 @@ is blocked, the dock pose goes stale, or the robot leaves the position tolerance
 the wrapper stops and returns failure. The caller can decide whether to retry.
 
 For a forward-facing charging dock, enable insertion after yaw settles by
-setting `max_insertion_travel` in metres. The default is `0.0` (disabled).
+setting `insertion_max_travel` in metres. The default is `0.0` (disabled).
 For example, enable a maximum of 5 cm for the hardware bay only:
 
 ```yaml
 docking_alignment:
   ros__parameters:
-    max_insertion_travel: 0.0
+    insertion_max_travel: 0.0
     docks:
       real_v_bay:
-        max_insertion_travel: 0.05
+        insertion_max_travel: 0.05
 ```
 
 The wrapper creeps forward at up to `insertion_speed` (default 0.01 m/s)
@@ -226,11 +226,11 @@ Seggy config files:
 ## Human-friendly geometry configuration
 
 Lengths are metres and all public angles are degrees. ROS 2 flattens nested YAML
-keys into dotted parameter names, for example `trapezoid.panel_width`.
+keys into dotted parameter names, for example `trapezoid_bay.panel_width`.
 All panels within a shape have equal width (measured along the panel).
 
 ```yaml
-trapezoid:
+trapezoid_bay:
   panel_width: 0.50
   flare_angle_deg: 32.5
   parking_offset: 0.425
@@ -238,7 +238,7 @@ trapezoid:
   dimension_tolerance: 0.05
   max_corner_gap: 0.10
   joint_refinement: true
-v:
+v_shaped_bay:
   joint_refinement: true
   panel_width: 0.70
   flare_angle_deg: 55.0
@@ -267,7 +267,7 @@ use the current files in `config/` for runnable parameters.
 
 ## V joint refinement
 
-`v.joint_refinement: true` enables bounded joint fitting after the existing V
+`v_shaped_bay.joint_refinement: true` enables bounded joint fitting after the existing V
 line-pair seed. Both finite, equal-width panels are fit simultaneously with their
 configured opening angle fixed; only landmark X/Y/yaw change. The shared robust
 solver uses fixed point assignments, equal panel weighting and Huber residuals.
@@ -278,8 +278,8 @@ falling back to the seed. It cannot recover a V with only one supported panel.
 
 Diagnostics include refinement state, per-panel support, residual, correction,
 conditioning and confidence, using the same schema as trapezoid fitting.
-`v.joint_refinement: false` retains the independent-line baseline. This switch is
-separate from `trapezoid.joint_refinement`. Geometric Python API callers must pass
+`v_shaped_bay.joint_refinement: false` retains the independent-line baseline. This switch is
+separate from `trapezoid_bay.joint_refinement`. Geometric Python API callers must pass
 `joint_refinement=True` and `panel_width` explicitly to opt in; node defaults enable it.
 
 A paired 135-scan offline simulation comparison at 55 degrees per arm and 0.70 m
@@ -389,7 +389,7 @@ described below. Downstream plugin filtering can also be used.
 A geometrically identical nearby bay can still be ambiguous: this is a single
 known-dock detector, not arbitrary dock recognition.
 
-The current Seggy world uses `target_shape: trapezoid`: inner rear width **0.50 m**,
+The current Seggy world uses `target_shape: trapezoid_bay`: inner rear width **0.50 m**,
 forward depth **0.4217 m**, and each side flared **32.5 degrees outward** from the
 opening axis. Each side wall is 0.50 m long (as is the rear panel); opening width is
 1.0373 m. Rear-face centre remains (-1.425, 3), so the parking offset
@@ -424,7 +424,7 @@ within a scan is not compensated; begin stationary, then validate at slow speed.
 
 ## V landmark mode
 
-`target_shape: v` matches two straight arms meeting at an apex. The internal fit yaw is their
+`target_shape: v_shaped_bay` matches two straight arms meeting at an apex. The internal fit yaw is their
 outward bisector; the published dock yaw is opposite and `v_offset` sets the distance from apex to the desired
 parking point along that bisector. The selected V dock uses two 0.70 m arms. **Per-arm flare** is measured from
 the opening axis, so `expected_angle` is twice the flare: 20–45° flare means a

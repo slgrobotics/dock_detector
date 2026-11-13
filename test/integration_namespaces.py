@@ -26,11 +26,11 @@ def test_catalogue_launches_in_two_robot_namespaces():
             future=clients[index].call_async(SelectDock.Request(activate=activate,dock_id=dock,acquisition_id=token))
             rclpy.spin_until_future_complete(peer,future,timeout_sec=2.)
             assert future.done();return future.result()
-        assert request(0,'trapezoid_bay','a').success
-        assert request(1,'v_bay','b').success
-        assert not request(0,'v_bay','b',False).success
-        assert request(1,'v_bay','b',False).success
-        assert request(0,'trapezoid_bay','a',False).success
+        assert request(0,'sim_trapezoid_bay','a').success
+        assert request(1,'sim_v_bay','b').success
+        assert not request(0,'sim_v_bay','b',False).success
+        assert request(1,'sim_v_bay','b',False).success
+        assert request(0,'sim_trapezoid_bay','a',False).success
     finally:
         for process in processes:process.send_signal(signal.SIGINT)
         for process in processes:

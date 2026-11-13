@@ -25,7 +25,7 @@ def model_polygon(name):
 
 def test_perpendicular_v_world_matches_70cm_55degree_template_and_offset():
     cfg=load_parameters((PACKAGE/'config/seggy_v.yaml').read_text())
-    assert cfg['target_shape']=='v'
+    assert cfg['target_shape']=='v_shaped_bay'
     assert cfg['expected_angle']==math.radians(110)
     final=np.array([cfg['expected_dock_x'],cfg['expected_dock_y']])
     yaw=cfg['expected_dock_yaw']-math.pi
@@ -57,7 +57,7 @@ def test_two_docks_are_separate_and_both_centerline_approaches_clear():
         for d in np.linspace(0,.8,17):
             footprint=body@rotation(yaw).T+final+d*np.array([math.cos(yaw),math.sin(yaw)])
             assert not any(polygons_intersect(footprint,p) for p in trap+v)
-        if cfg['target_shape']=='v':
+        if cfg['target_shape']=='v_shaped_bay':
             footprint=body@rotation(yaw).T+final
             assert min(polygon_clearance(footprint,p) for p in v)>.16
 
