@@ -10,19 +10,20 @@ Back to [Main Project Home](https://github.com/slgrobotics/articubot_one/wiki)
 - [Technical overview](#technical-overview)
 - [Run](#run)
 - [Demos with Seggy robot](#demos-with-seggy-robot)
-- [Human-friendly geometry configuration](#human-friendly-geometry-configuration)
-- [V joint refinement](#v-joint-refinement)
-- [Multiple docks and robots](#multiple-docks-and-robots)
-- [Interface](#interface)
-- [Algorithm and limitations](#algorithm-and-limitations)
-- [V landmark mode](#v-landmark-mode)
-- [Two docks in the test world](#two-docks-in-the-test-world)
-- [Fixed V placement recommendation](#fixed-v-placement-recommendation)
-- [Verify](#verify)
-- [Recorded stationary check (2026-11-05)](#recorded-stationary-check-2026-11-05)
-- [Offline flare-angle sweep](#offline-flare-angle-sweep)
-- [Joint fitting and confidence diagnostics](#joint-fitting-and-confidence-diagnostics)
-- [Reusable live-test controller](#reusable-live-test-controller)
+- [Technical details](technical-details)
+  - [Human-friendly geometry configuration](#human-friendly-geometry-configuration)
+  - [V joint refinement](#v-joint-refinement)
+  - [Multiple docks and robots](#multiple-docks-and-robots)
+  - [Interface](#interface)
+  - [Algorithm and limitations](#algorithm-and-limitations)
+  - [V landmark mode](#v-landmark-mode)
+  - [Two docks in the test world](#two-docks-in-the-test-world)
+  - [Fixed V placement recommendation](#fixed-v-placement-recommendation)
+  - [Verify](#verify)
+  - [Recorded stationary check (2026-11-05)](#recorded-stationary-check-2026-11-05)
+  - [Offline flare-angle sweep](#offline-flare-angle-sweep)
+  - [Joint fitting and confidence diagnostics](#joint-fitting-and-confidence-diagnostics)
+  - [Reusable live-test controller](#reusable-live-test-controller)
 
 -------------
 
@@ -224,7 +225,11 @@ Seggy config files and explanation:
 > - code in some repositories can be in active development, keep your local code in sync.
 > - take a look at https://github.com/slgrobotics/articubot_one/blob/lyrical/scripts/pull_all_repos.sh
 
-## Human-friendly geometry configuration
+## Technical details
+
+Here are some AI-generated technical details
+
+### Human-friendly geometry configuration
 
 Lengths are metres and all public angles are degrees. ROS 2 flattens nested YAML
 keys into dotted parameter names, for example `trapezoid_bay.panel_width`.
@@ -266,7 +271,7 @@ parameter files before restarting; old overrides are not compatibility aliases.
 Historical result snapshots and examples below retain their original schema;
 use the current files in `config/` for runnable parameters.
 
-## V joint refinement
+### V joint refinement
 
 `v_shaped_bay.joint_refinement: true` enables bounded joint fitting after the existing V
 line-pair seed. Both finite, equal-width panels are fit simultaneously with their
@@ -290,7 +295,7 @@ was approximately 30 -> 36 ms on this machine. These synthetic results do not
 establish hardware accuracy or closed-loop docking performance. See
 [comparison and reproduction script](results/2026-11-07-v-refinement/README.md).
 
-## Multiple docks and robots
+### Multiple docks and robots
 
 Seggy simulation now includes this integration automatically. Its persistent
 robot configuration, launch arguments and action commands are documented in
@@ -319,7 +324,7 @@ Multi-robot operation and full Nav2 action docking are not yet validated.
 The trapezoid profile is `config/seggy_t.yaml`; `config/seggy_v.yaml` remains the V
 profile. Historical result snapshots retain original filenames.
 
-## Interface
+### Interface
 
 - Input: `scan` (`sensor_msgs/msg/LaserScan`, sensor-data QoS) and timestamped TF.
 - Output: `detected_dock_pose` (`geometry_msgs/msg/PoseStamped`, volatile QoS).
@@ -375,7 +380,7 @@ own offset automatically. Values must be finite and nonnegative. The old
 external parameter files and restart the detector. Changing offsets does not
 move physical/Gazebo walls, so the geometry and parameters must agree.
 
-## Algorithm and limitations
+### Algorithm and limitations
 
 Filter valid ranges; transform points at the scan timestamp; select a circular
 region around the expected target; extract RANSAC/TLS line segments with bounded gaps.
@@ -423,7 +428,7 @@ on detection loss. Scan timestamps and availability of exact-time TF are require
 The node briefly retries the newest scan when TF arrives late. Motion distortion
 within a scan is not compensated; begin stationary, then validate at slow speed.
 
-## V landmark mode
+### V landmark mode
 
 `target_shape: v_shaped_bay` matches two straight arms meeting at an apex. The internal fit yaw is their
 outward bisector; the published dock yaw is opposite and `v_offset` sets the distance from apex to the desired
@@ -448,7 +453,7 @@ A two-arm V has no 0.50 m rear-width offset: entrance width is
 new perpendicular V dock uses `v_offset: 0.6` and the recommended apex placement.
 Historical offline sweeps retain their original offsets for comparison.
 
-## Two docks in the test world
+### Two docks in the test world
 
 `articubot_one/assets/worlds/test_robot_world.sdf` contains both selected docks:
 
@@ -478,7 +483,7 @@ Profiles contain coarse map-frame parking priors. The table gives Gazebo world
 references; verify map/world alignment before commanding Nav2 goals. Existing
 maps may contain old walls. No charging behavior is modeled.
 
-## Fixed V placement recommendation
+### Fixed V placement recommendation
 
 The V angle is fixed at 55° per arm (110° included), with two 70 cm panels.
 The offline placement study recommends centering the V on the final heading and
@@ -496,7 +501,7 @@ it needs validation in Gazebo and does not guarantee continuous tolerance-box
 clearance. See `results/2026-11-06-v55-placement/run_01/README.md` and
 `placement_recommendation.png` for dimensions, selection rule and raw data.
 
-## Verify
+### Verify
 
 ```bash
 PYTHONPATH=src/dock_detector:$PYTHONPATH python3 -m pytest -q src/dock_detector/test
@@ -510,7 +515,7 @@ including the rear blind sector, partial occlusion, noise, false corners, and ta
 loss. No docking precision is established by unit tests alone. Full experiment
 history is maintained in `~/articubot_one.wiki/Docking-in-ROS2.md`.
 
-## Recorded stationary check (2026-11-05)
+### Recorded stationary check (2026-11-05)
 
 With the new rectangular bay and the restarted 5-degree-gap LiDAR, a 20-second
 perception-only run received 118 scans and published 113 detected poses (including
@@ -522,7 +527,7 @@ robot motion was commanded during this check. The detector exits after the test;
 use the launch command above to run it continuously.
 
 
-## Offline flare-angle sweep
+### Offline flare-angle sweep
 
 Run a fixed-panel geometry comparison without ROS or Gazebo:
 
@@ -567,7 +572,7 @@ gaps. This simplified model omits unrelated clutter, reflectance, additional
 self-occlusion, and real-time TF/control effects; validate promising angles with
 identical Gazebo poses before choosing physical geometry.
 
-## Joint fitting and confidence diagnostics
+### Joint fitting and confidence diagnostics
 
 Trapezoid mode now uses `joint_refinement: true`. The existing three-line geometry
 matcher supplies an initial pose. A bounded robust fit then adjusts **only X, Y,
@@ -629,7 +634,7 @@ ros2 run dock_detector dock_detector --ros-args \
   -p joint_refinement:=false
 ```
 
-## Reusable live-test controller
+### Reusable live-test controller
 
 The source script `scripts/dock_controller.py` is a complete entry point for
 `dock_detector/docking_controller.py`. The installed command
