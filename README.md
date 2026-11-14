@@ -216,8 +216,9 @@ A [trace_analyzer.py](https://github.com/slgrobotics/dock_detector/blob/main/scr
 Real robot docking video:
 - https://youtu.be/uFLA7F-c8A0
 
-Seggy config files:
+Seggy config files and explanation:
 - https://github.com/slgrobotics/articubot_one/tree/lyrical/robots/seggy/config
+- https://github.com/slgrobotics/articubot_one/blob/lyrical/robots/seggy/README.md#docking-configuration
 
 > **Note:**
 > - code in some repositories can be in active development, keep your local code in sync.
