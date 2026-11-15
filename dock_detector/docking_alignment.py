@@ -355,7 +355,6 @@ class DockingAlignment(Node):
         tolerances = {
             'xy_goal_tolerance': self.settings['restaging_xy_goal_tolerance'],
             'yaw_goal_tolerance': math.radians(self.settings['restaging_yaw_goal_tolerance']),
-            'stateful': False,
         }
         parameters = [Parameter(f'{checker}.{key}', value=value)
                       for key, value in tolerances.items()]
@@ -369,8 +368,7 @@ class DockingAlignment(Node):
             raise DockingFailure(DockRobot.Result.FAILED_TO_STAGE,
                                  'Could not read the active staging goal checker settings')
         original = [
-            Parameter(param.name, value=(value.bool_value
-                      if param.type_ == Parameter.Type.BOOL else value.double_value))
+            Parameter(param.name, value=value.double_value)
             for param, value in zip(parameters, saved)
         ]
         try:
