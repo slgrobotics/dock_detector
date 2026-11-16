@@ -1,5 +1,19 @@
 #!/usr/bin/env python3
-"""Offline angle comparison; never imports ROS or commands the simulator."""
+"""
+Compare docking detector performance across panel flare angles.
+
+The offline sweep simulates lidar scans over a grid of robot poses and records
+footprint clearance and detection results. The default sweeps trapezoid angles.
+Use --shape v to sweep V angles against a fixed 32.5-degree trapezoid baseline.
+
+From the workspace root, with NumPy and PyYAML available, run:
+
+     PYTHONPATH=src/dock_detector:$PYTHONPATH OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 python3 src/dock_detector/scripts/sweep_flare.py --shape v --output /tmp/seggy-v-sweep
+
+Choose a new output directory. Expect progress messages and a final FINISHED
+line. The directory contains raw samples in JSONL and CSV, run metadata, and
+progress records. The sweep runs offline without a ROS graph or simulator.
+"""
 import argparse,concurrent.futures,csv,hashlib,json,math,os,time
 from pathlib import Path
 import numpy as np

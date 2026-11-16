@@ -1,4 +1,19 @@
-"""Controller convergence and freshness checks; no ROS graph or motion commands."""
+"""
+Verify reverse docking convergence and controller behavior during data loss.
+
+The tests exercise rough staging, invalid limits, stale transforms, and
+duplicate or discontinuous detections. They also check cached-goal expiry
+and command rate with mocked controller inputs.
+
+From the workspace root, source install/setup.bash in a built ROS workspace
+and run:
+
+     PYTHONPATH=src/dock_detector:$PYTHONPATH python3 -m pytest -q src/dock_detector/test/test_controller.py
+
+Expect pytest to pass when the controller converges in the model and follows
+the expected stop and recovery behavior. No live ROS graph or motion is needed.
+"""
+
 import math
 from types import SimpleNamespace
 from unittest.mock import patch

@@ -1,5 +1,18 @@
 #!/usr/bin/env python3
-"""Fixed-angle V placement report and dimensioned placement diagram."""
+"""
+Rank the tested V dock standoffs and draw the recommended placement.
+
+The report reads metadata.json, placement_geometry.json, and samples.jsonl
+from sweep_v_placement.py to compare clearance and detection performance.
+
+From the workspace root, with NumPy and Matplotlib available, run:
+
+     PYTHONPATH=src/dock_detector:$PYTHONPATH python3 src/dock_detector/scripts/report_v_placement.py /tmp/seggy-v-placement
+
+Expect JSON describing the selected placement on stdout. The script writes
+summary.json, placement_ranking.csv, placement_recommendation.png, and
+README.md into the sweep directory.
+"""
 import collections,csv,json,math,sys
 from pathlib import Path
 import numpy as np

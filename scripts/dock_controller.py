@@ -1,12 +1,16 @@
 #!/usr/bin/env python3
 """
-ROS-only experimental docking controller. Preview by default; --execute moves.
+Preview an experimental docking approach and check the detected target pose.
 
-dock_controller.py is a thin entry point for the same controller that runs with ros2 run dock_detector dock_controller.
+The preview uses the detector's fresh dock poses and the controller's robot
+transform. With the workspace sourced and the detector running, use:
 
-It’s useful for previewing detected poses and testing short approaches from a nearby position.
+     ros2 run dock_detector dock_controller --detected-goal
 
-For routine Seggy docking, use Nav2’s /dock_robot, which handles staging and named dock selection.
+A successful preview logs preview_complete and exits without publishing motion.
+Add --use-sim-time when the ROS graph uses /clock. The --execute option enables
+motion for short approach tests. For routine Seggy docking, use Nav2's
+/dock_robot for staging and named dock selection.
 """
 
 from dock_detector.docking_controller import main

@@ -1,3 +1,17 @@
+"""
+Verify named dock selection and Nav2 pose generation.
+
+The tests exercise unknown dock IDs and releases tied to an acquisition ID.
+They also check that generating Nav2 poses leaves the original data intact.
+
+From the workspace root, run:
+
+     PYTHONPATH=src/dock_detector:$PYTHONPATH python3 -m pytest -q src/dock_detector/test/test_catalogue.py
+
+Expect pytest to pass when selections follow those rules and the generated
+poses match the expected values.
+"""
+
 from dock_detector.catalogue import Selection
 
 

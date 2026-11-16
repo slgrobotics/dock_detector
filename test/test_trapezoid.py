@@ -1,4 +1,18 @@
-"""Trapezoidal template tests, including angularly sampled world geometry."""
+"""
+Verify trapezoid detection against synthetic scans and the dock world geometry.
+
+The tests exercise rotation, noise, clutter, missing faces, and wrong templates.
+They also sample lidar rays against the SDF and check the bay dimensions and
+three half-metre panels.
+
+From the workspace root, run:
+
+     PYTHONPATH=src/dock_detector:$PYTHONPATH python3 -m pytest -q src/dock_detector/test/test_trapezoid.py
+
+Expect eligible scans to match within the asserted tolerances and invalid
+scans to be rejected. No running simulator is needed.
+"""
+
 import math
 from pathlib import Path
 import xml.etree.ElementTree as ET

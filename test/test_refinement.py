@@ -1,4 +1,18 @@
-"""Joint fitting improves a perturbed pose without changing bay dimensions."""
+"""
+Verify joint pose refinement for V and trapezoid docks.
+
+The tests fit perturbed poses with clutter, check that panel dimensions stay
+fixed, and exercise missing panels, diagnostics, the refinement switch, and
+the V detector’s prior guard.
+
+From the workspace root, run:
+
+     PYTHONPATH=src/dock_detector:$PYTHONPATH python3 -m pytest -q src/dock_detector/test/test_refinement.py
+
+Expect pytest to pass when supported fits improve the pose within the asserted
+tolerances and unsupported fits are rejected.
+"""
+
 import math
 import numpy as np
 import pytest

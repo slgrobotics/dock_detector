@@ -1,3 +1,17 @@
+"""
+Verify the offline lidar and footprint models used in dock sweeps.
+
+The tests compare modeled panels with the checked-in SDF, exercise minimum
+lidar range and V-panel support, and check footprint contact and clearance.
+
+From the workspace root, run:
+
+     PYTHONPATH=src/dock_detector:$PYTHONPATH python3 -m pytest -q src/dock_detector/test/test_simulation.py
+
+Expect the simulated scans and clearances to satisfy the fixture assertions.
+The test reads SDF files directly and needs no running simulator.
+"""
+
 import math
 from pathlib import Path
 import xml.etree.ElementTree as ET

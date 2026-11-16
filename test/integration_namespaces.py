@@ -1,4 +1,19 @@
-"""Explicit launch/service isolation test; runs no velocity publishers."""
+"""
+Verify that two namespaced dock detectors keep their selections independent.
+
+The test launches detectors under robot_a and robot_b, selects a different
+dock in each, and attempts to release a selection using the other robot’s ID.
+
+From the workspace root, source install/setup.bash in a built ROS workspace.
+Run in an unused ROS domain, replacing 87 if it is already in use:
+
+     ROS_DOMAIN_ID=87 PYTHONPATH=src/dock_detector:$PYTHONPATH python3 -m pytest -q src/dock_detector/test/integration_namespaces.py
+
+Expect both select_dock services to respond and only matching release requests
+to succeed. The test shuts down both launch processes and captures their logs
+in pytest. It runs no velocity publishers.
+"""
+
 from pathlib import Path
 import signal
 import subprocess

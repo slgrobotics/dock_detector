@@ -1,5 +1,19 @@
+"""
+Verify that the dock world geometry agrees with the detector configuration.
+
+The tests compare the perpendicular V dock with the configured 70 cm, 55-degree
+template and offset. They also check dock separation, world markings, and
+footprint clearance along both centerline approaches.
+
+From the workspace root, run:
+
+     PYTHONPATH=src/dock_detector:$PYTHONPATH python3 -m pytest -q src/dock_detector/test/test_world_docks.py
+
+Expect pytest to pass when the checked-in world and profiles agree and both
+approaches meet the clearance checks. No running simulator is needed.
+"""
+
 from dock_detector.shape_parameters import geometry_parameters
-"""World panels, detector profiles, markings and parking clearances agree."""
 import math
 from pathlib import Path
 import xml.etree.ElementTree as ET

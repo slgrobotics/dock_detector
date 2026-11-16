@@ -1,4 +1,17 @@
-"""Unsupported legacy shape selection must fail before a ROS graph is created."""
+"""
+Verify that the detector rejects the unsupported rectangle mode.
+
+The test supplies the legacy rectangle setting and checks that initialization
+fails before creating the ROS graph.
+
+From the workspace root, source install/setup.bash in a built ROS workspace
+and run:
+
+     PYTHONPATH=src/dock_detector:$PYTHONPATH python3 -m pytest -q src/dock_detector/test/test_node_modes.py
+
+Expect pytest to pass when the detector raises the expected error.
+"""
+
 from types import SimpleNamespace
 from unittest.mock import patch
 import pytest

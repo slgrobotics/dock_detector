@@ -1,5 +1,19 @@
 #!/usr/bin/env python3
-"""Fixed 55-degree / 70 cm V; vary apex standoff behind the final point only."""
+"""
+Compare apex standoffs behind the desired final point for a fixed V dock.
+
+The offline sweep holds each arm at 55 degrees and 70 cm, then varies the apex
+standoff. It checks Seggy's footprint clearance and records position and yaw
+errors from simulated lidar detections.
+
+From the workspace root, with NumPy and PyYAML available, run:
+
+     PYTHONPATH=src/dock_detector:$PYTHONPATH OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 python3 src/dock_detector/scripts/sweep_v_placement.py --output /tmp/seggy-v-placement
+
+Choose a new output directory. Expect progress messages and a final FINISHED
+line. The directory contains samples.jsonl, samples.csv, metadata.json, and
+placement_geometry.json for the matching placement report.
+"""
 import concurrent.futures,csv,hashlib,json,math,time
 from pathlib import Path
 import argparse,numpy as np,yaml

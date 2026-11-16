@@ -1,4 +1,19 @@
-"""Explicit no-motion ROS test: pytest test/integration_named_docks.py in isolated domain."""
+"""
+Verify named dock selection and detection messages over ROS 2.
+
+The test switches between trapezoid and V profiles, then checks that a
+synthetic scan produces a measurement with the active dock and acquisition IDs.
+It also checks stale scans and the legacy single-profile mode.
+
+From the workspace root, source install/setup.bash in a built ROS workspace.
+Run in an unused ROS domain, replacing 87 if it is already in use:
+
+     ROS_DOMAIN_ID=87 PYTHONPATH=src/dock_detector:$PYTHONPATH python3 -m pytest -q src/dock_detector/test/integration_named_docks.py
+
+Expect pytest to pass when selection, release, and measurement filtering
+follow the active acquisition. The test publishes no motion commands.
+"""
+
 import time
 from pathlib import Path
 from unittest.mock import patch

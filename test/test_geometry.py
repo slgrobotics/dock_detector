@@ -1,3 +1,18 @@
+"""
+Verify V-shaped dock detection on synthetic lidar points.
+
+The tests cover rotated and noisy panels, outliers, missing scan sectors, and
+partial support. They also exercise the expected opening, location, facing,
+and panel lengths.
+
+From the workspace root, run:
+
+     PYTHONPATH=src/dock_detector:$PYTHONPATH python3 -m pytest -q src/dock_detector/test/test_geometry.py
+
+Expect valid V fixtures to match within the asserted tolerances and invalid
+geometry or poses to be rejected.
+"""
+
 import math
 import numpy as np
 from dock_detector.core.geometry import detect_v, angle_error

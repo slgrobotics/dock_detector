@@ -1,5 +1,20 @@
+"""
+Verify how the detector applies scalar offsets for V and trapezoid docks.
+
+The tests check the offset in both directions, from the prior to the landmark
+and from the detected landmark to the published pose. Invalid offset values
+are checked before ROS graph creation.
+
+From the workspace root, source install/setup.bash in a built ROS workspace
+and run:
+
+     PYTHONPATH=src/dock_detector:$PYTHONPATH python3 -m pytest -q src/dock_detector/test/test_detector_offsets.py
+
+Expect pytest to pass when both shapes use the correct landmark direction
+and invalid configuration is rejected.
+"""
+
 from dock_detector.shape_parameters import geometry_parameters
-"""Check shape-specific scalar offsets in both prior inversion and output pose."""
 import math,time
 from pathlib import Path
 from types import SimpleNamespace

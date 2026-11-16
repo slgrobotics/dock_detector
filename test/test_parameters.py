@@ -1,4 +1,18 @@
-"""Public YAML schema preserves measured bays and rejects invalid geometry."""
+"""
+Verify the detector’s public ROS YAML geometry parameters.
+
+The tests cover equal panel dimensions, degree conversion, invalid geometry,
+and the ROS parser’s flattening of shape-specific parameter groups.
+
+From the workspace root, source install/setup.bash in a built ROS workspace
+and run:
+
+     PYTHONPATH=src/dock_detector:$PYTHONPATH python3 -m pytest -q src/dock_detector/test/test_parameters.py
+
+Expect pytest to pass when valid profiles retain their geometry and invalid
+values raise the expected errors.
+"""
+
 import math
 from pathlib import Path
 import pytest

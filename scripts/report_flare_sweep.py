@@ -1,5 +1,17 @@
 #!/usr/bin/env python3
-"""Report an offline V sweep with its fixed trapezoid baseline; no ROS access."""
+"""
+Summarize an offline V flare sweep against its fixed trapezoid baseline.
+
+The report reads metadata.json and samples.jsonl from a sweep_flare.py run
+created with --shape v. It ranks the candidates and plots their coverage.
+
+From the workspace root, with NumPy and Matplotlib available, run:
+
+     python3 src/dock_detector/scripts/report_flare_sweep.py /tmp/seggy-v-sweep
+
+Expect a JSON summary on stdout. The script writes summary.json, ranking.csv,
+coverage_maps.png, comparison.png, and README.md into the sweep directory.
+"""
 import collections,csv,json,math,sys
 from pathlib import Path
 import numpy as np
