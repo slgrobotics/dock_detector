@@ -187,8 +187,13 @@ docking_alignment:
 
 The wrapper creeps forward at up to `insertion_speed` (default 0.01 m/s)
 through the same collision-monitored path. It brakes before the odometry
-limit and stops early if a fresh `BatteryState` reports `CHARGING` on
-`battery/battery_state`. The action succeeds once the robot is stationary
+limit. A fresh `BatteryState` reporting `CHARGING` on `battery/battery_state`
+starts the selected bay's `charging_to_stop_delay` (seconds, default `0.0`).
+Set it alongside `insertion_max_travel` in each bay's catalogue entry. When that delay expires,
+the wrapper commands zero velocity. The timer starts at the first observed charging
+status and keeps running through contact-status flicker. The travel limit, braking
+margin, input freshness checks and overall insertion timeout remain active during
+the delay. A travel-limit stop can occur earlier. The action succeeds once the robot is stationary
 and charging is confirmed. If motion is blocked or charging is unconfirmed
 before `insertion_timeout` (default 15 s), the wrapper stops and fails the
 action. The travel limit is based on odometry. Insertion plot samples

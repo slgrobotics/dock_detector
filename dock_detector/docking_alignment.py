@@ -84,7 +84,8 @@ class DockingAlignment(Node):
             'alignment_position_margin': 0.02,
             'insertion_max_travel': 0.0, 'insertion_speed': .01,
             'insertion_stop_margin': .001,
-            'insertion_timeout': 15.0, 'battery_topic': 'battery/battery_state',
+            'insertion_timeout': 15.0,
+            'battery_topic': 'battery/battery_state',
             'angular_speed': .05, 'alignment_timeout': 12.0,
             'external_detection_timeout': .5, 'selection_timeout': 3.0,
             'trace_enabled': False,
@@ -126,6 +127,13 @@ class DockingAlignment(Node):
                 f'docks.{dock}.insertion_max_travel', self.settings['insertion_max_travel']
             ).value for dock in dock_ids
         }
+        self.charging_stop_delays = {
+            dock: self.declare_parameter(f'docks.{dock}.charging_to_stop_delay', 0.0).value
+            for dock in dock_ids
+        }
+        if any(not math.isfinite(value) or value < 0
+               for value in self.charging_stop_delays.values()):
+            raise ValueError('Per-dock charging_to_stop_delay must be finite and nonnegative')
         if any(not math.isfinite(value) or value < 0 for value in self.insertion_travel.values()):
             raise ValueError('Per-dock insertion_max_travel must be finite and nonnegative')
         if (self.settings['dock_direction'] != 'forward'
@@ -657,12 +665,14 @@ class DockingAlignment(Node):
 
     def insert(self, goal, started, result, trace, aligned, limit):
         dock = goal.request.dock_id
+        charging_delay = self.charging_stop_delays.get(dock, 0.0)
         trace.report('insertion_start', f'max_travel_cm={100 * limit:.2f}')
         deadline = monotonic() + self.settings['insertion_timeout']
         next_check = next_sample = 0.0
         origin = None
         stopped_since = None
         stop_reason = None
+        charging_since = None
         try:
             while monotonic() < deadline:
                 self.check_cancel(goal)
@@ -711,10 +721,19 @@ class DockingAlignment(Node):
                 remaining = limit - travel
                 # Reserve room for both hardware coasting and pipeline latency.
                 braking_room = self.settings['insertion_stop_margin'] + .25 * max(0.0, twist.linear.x)
-                if charging:
-                    stop_reason = 'charging'
-                elif remaining <= braking_room and stop_reason is None:
-                    stop_reason = 'travel_limit'
+                if charging and charging_since is None:
+                    charging_since = monotonic()
+                    trace.report('insertion_charge_detected',
+                                 f'charging_to_stop_delay_s={charging_delay:.3f}')
+                charge_delay_elapsed = (
+                    charging_since is not None
+                    and monotonic() - charging_since >= charging_delay
+                )
+                if stop_reason is None:
+                    if remaining <= braking_room:
+                        stop_reason = 'travel_limit'
+                    elif charge_delay_elapsed:
+                        stop_reason = 'charging'
 
                 self.check_cancel(goal)
                 max_speed = self.settings['insertion_speed']
