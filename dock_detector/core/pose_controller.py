@@ -7,6 +7,13 @@ def wrap(angle):
     return math.atan2(math.sin(angle), math.cos(angle))
 
 
+def moving_speed(requested, minimum, maximum):
+    """Bound a signed motion command without changing an explicit stop."""
+    if requested == 0:
+        return 0.0
+    return math.copysign(min(maximum, max(minimum, abs(requested))), requested)
+
+
 @dataclass
 class Limits:
     speed: float = 0.035

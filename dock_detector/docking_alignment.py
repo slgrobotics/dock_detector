@@ -29,7 +29,7 @@ from tf2_ros import Buffer, TransformException, TransformListener
 
 from dock_detector_interfaces.msg import DockDetection
 from dock_detector_interfaces.srv import SelectDock
-from .core.pose_controller import wrap
+from .core.pose_controller import moving_speed, wrap
 from .core.transforms import rotation
 
 
@@ -82,11 +82,11 @@ class DockingAlignment(Node):
             'fixed_frame': 'odom', 'base_frame': 'base_link', 'dock_direction': 'forward',
             'docking_threshold': .025, 'docking_threshold_yaw': 5.0,
             'alignment_position_margin': 0.02,
-            'insertion_max_travel': 0.0, 'insertion_speed': .01,
+            'insertion_max_travel': 0.0, 'insertion_speed': .01, 'insertion_min_speed': 0.0,
             'insertion_stop_margin': .001,
             'insertion_timeout': 15.0,
             'battery_topic': 'battery/battery_state',
-            'angular_speed': .05, 'alignment_timeout': 12.0,
+            'max_angular_speed_deg': math.degrees(.05), 'min_angular_speed_deg': 0.0, 'alignment_timeout': 12.0,
             'external_detection_timeout': .5, 'selection_timeout': 3.0,
             'trace_enabled': False,
             'restaging_goal_checker': '', 'max_restaging_retries': 2,
@@ -99,7 +99,8 @@ class DockingAlignment(Node):
             name: self.declare_parameter(name, value).value for name, value in defaults.items()
         }
         for name, default in defaults.items():
-            if name in ('alignment_position_margin', 'insertion_max_travel', 'insertion_stop_margin'):
+            if name in ('alignment_position_margin', 'insertion_max_travel', 'insertion_stop_margin',
+                        'insertion_min_speed', 'min_angular_speed_deg'):
                 value = self.settings[name]
                 if not math.isfinite(value) or value < 0:
                     raise ValueError(f'{name} must be finite and nonnegative')
@@ -107,6 +108,10 @@ class DockingAlignment(Node):
                 value = self.settings[name]
                 if not math.isfinite(value) or value <= 0:
                     raise ValueError(f'{name} must be finite and positive')
+        if self.settings['insertion_min_speed'] > self.settings['insertion_speed']:
+            raise ValueError('insertion_min_speed must not exceed insertion_speed')
+        if self.settings['min_angular_speed_deg'] > self.settings['max_angular_speed_deg']:
+            raise ValueError('min_angular_speed_deg must not exceed max_angular_speed_deg')
         if self.settings['restaging_yaw_goal_tolerance'] > 180:
             raise ValueError('restaging_yaw_goal_tolerance must be at most 180 degrees')
         if self.settings['max_restaging_retries'] < 0:
@@ -568,7 +573,7 @@ class DockingAlignment(Node):
             next_check = next_sample = still_since = 0.0
             settled_since = None
             tolerance = math.radians(self.settings['docking_threshold_yaw'])
-            maximum = self.settings['angular_speed']
+            maximum = math.radians(self.settings['max_angular_speed_deg'])
             distance_limit = self.alignment_position_limit
             while monotonic() < deadline:
                 self.check_cancel(goal)
@@ -639,7 +644,8 @@ class DockingAlignment(Node):
                         return sample
                 else:
                     settled_since = None
-                    angular = max(-maximum, min(maximum, 1.2 * yaw))
+                    angular = moving_speed(1.2 * yaw, math.radians(
+                        self.settings['min_angular_speed_deg']), maximum)
                     self.publish(angular)
                     trace.report('turn', f'{status} cmd_linear_mps=0.000 '
                                  f'cmd_angular_radps={angular:+.3f} {measured}')
@@ -739,7 +745,9 @@ class DockingAlignment(Node):
                 max_speed = self.settings['insertion_speed']
                 speed = 0.0
                 if stop_reason is None:
-                    speed = min(max_speed, max(.3 * max_speed, 2.0 * (remaining - braking_room)))
+                    speed = moving_speed(
+                        max(.3 * max_speed, 2.0 * (remaining - braking_room)),
+                        self.settings['insertion_min_speed'], max_speed)
                 self.publish(linear=speed)
                 if now >= next_sample:
                     self.trace_sample(dock, sample, 'approach', stage='insertion')

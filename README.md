@@ -185,6 +185,21 @@ docking_alignment:
         insertion_max_travel: 0.05
 ```
 
+The wrapper optionally enforces `insertion_min_speed` (m/s, default `0.0`)
+while insertion is active and `min_angular_speed_deg` (degrees/s, default
+`0.0`) while correcting yaw outside tolerance. Each minimum must be nonnegative
+and no greater than its corresponding maximum (`insertion_speed` or
+`max_angular_speed_deg`, in degrees/s). Defaults preserve the original taper.
+Stops, charging/travel-limit braking, cancellation, and tolerance settling still
+command zero. These are body-speed floors for the wrapper's pure straight and
+in-place phases; they are not per-wheel limits for curved Nav2 approaches.
+
+Seggy's real and simulation overlays select an insertion floor/ceiling of
+0.0406 m/s and yaw floor 9.84 degrees/s with `max_angular_speed_deg: 9.855` (approximately 0.172 rad/s). These are
+approximately 9.5% of the 3.5 rad/s wheel maximum. Values are rounded slightly
+upward so the alignment floor clears the smoother's 0.1716 rad/s deadband.
+Integer firmware percentages quantize these commands to approximately 10%.
+
 The wrapper creeps forward at up to `insertion_speed` (default 0.01 m/s)
 through the same collision-monitored path. It brakes before the odometry
 limit. A fresh `BatteryState` reporting `CHARGING` on `battery/battery_state`

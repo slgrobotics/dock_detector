@@ -24,7 +24,7 @@ def simulate_insertion(delay, *, flicker=False, near_limit=False, dock_id='real_
     wrapper = Mock()
     wrapper.settings = {
         'insertion_timeout': 5.0,
-        'insertion_stop_margin': .01, 'insertion_speed': .01,
+        'insertion_stop_margin': .01, 'insertion_speed': .01, 'insertion_min_speed': 0.0,
         'docking_threshold_yaw': 5.0,
     }
     wrapper.charging_stop_delays = {'real_v_bay': delay, 'other_bay': 0.0}
